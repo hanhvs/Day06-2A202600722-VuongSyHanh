@@ -191,11 +191,11 @@ Prototype được xem là đạt nếu:
 
 | Thành viên | Việc phụ trách | Bằng chứng cần có trong repo |
 | ---------- | -------------- | ---------------------------- |
-| Long | Research / evidence | Evidence screenshots trong `02-group-spec/evidence/` và `evidence-pack.md` |
-| Long | SPEC | `prd-ai-triage-neo.md`, `thin-spec.md`, `synthesis-decide-toolkit.md` |
+| Hạnh | Research / evidence | Evidence screenshots trong `02-group-spec/evidence/` và `evidence-pack.md` |
+| Kiên | SPEC | `prd-ai-triage-neo.md`, `thin-spec.md`, `synthesis-decide-toolkit.md` |
 | Long / prototype owner | Prototype | `prototype/` web mock, server, README, `.env.example` |
-| Long / test owner | Test / failure path | 4 paths + multi-intent test; screenshot demo nếu cần |
-| Long / demo owner | Demo script / repo | README, plan/steps, handoff summary demo |
+| Khoa / test owner | Test / failure path | 4 paths + multi-intent test; screenshot demo nếu cần |
+| Đức / demo owner | Demo script / repo | README, plan/steps, handoff summary demo |
 
 ---
 
