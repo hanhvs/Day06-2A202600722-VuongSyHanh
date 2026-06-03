@@ -1,0 +1,18 @@
+{
+  "name": "vietnam-airlines-neo-ai-triage",
+  "version": "1.0.0",
+  "description": "Vietnam Airlines NEO chatbot prototype for airline Q&A, travel place suggestions, and safe ticket/payment/add-on support.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "openai": "^4.104.0",
+    "zod": "^3.25.67"
+  }
+}
