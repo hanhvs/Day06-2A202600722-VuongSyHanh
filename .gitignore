@@ -1,0 +1,10 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.env
+prototype/.env
+node_modules/
+prototype/node_modules/
+prototype/.chrome-debug/
