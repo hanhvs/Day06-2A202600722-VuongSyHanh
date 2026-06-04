@@ -254,77 +254,7 @@ async function streamTriage(message, typingEl) {
   return finalResult;
 }
 
-function appendTypingIndicator() {
-  const article = document.createElement("article");
-  article.className = "message assistant typing";
-  article.innerHTML = `
-    <div class="avatar">NEO</div>
-    <div class="bubble typing-bubble" aria-live="polite">
-      <span class="typing-dots"><span></span><span></span><span></span></span>
-      <span class="typing-label">Đang chuẩn bị…</span>
-    </div>
-  `;
-  chatMessages.append(article);
-  scrollChatToBottom();
-  return article;
-}
 
-function setTypingLabel(typingEl, label) {
-  const labelEl = typingEl?.querySelector(".typing-label");
-  if (labelEl) labelEl.textContent = label;
-  scrollChatToBottom();
-}
-
-async function streamTriage(message, typingEl) {
-  const response = await fetch("/api/triage/stream", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "text/event-stream"
-    },
-    body: JSON.stringify({ message, conversationState })
-  });
-  if (!response.ok || !response.body) {
-    throw new Error(`Server lỗi (${response.status})`);
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let finalResult = null;
-  let streamError = null;
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
-    let separator;
-    while ((separator = buffer.indexOf("\n\n")) !== -1) {
-      const block = buffer.slice(0, separator);
-      buffer = buffer.slice(separator + 2);
-      const dataLine = block.split("\n").find((line) => line.startsWith("data:"));
-      if (!dataLine) continue;
-      let event;
-      try {
-        event = JSON.parse(dataLine.slice(5).trim());
-      } catch {
-        continue;
-      }
-      if (event.type === "stage") {
-        setTypingLabel(typingEl, event.label);
-      } else if (event.type === "done") {
-        finalResult = event.result;
-      } else if (event.type === "error") {
-        streamError = new Error(event.message || "Server lỗi");
-      }
-    }
-  }
-
-  if (streamError) throw streamError;
-  if (!finalResult) throw new Error("Stream kết thúc nhưng chưa có kết quả.");
-  return finalResult;
-}
 
 function renderMiniList(items, maxItems = 4) {
   const visibleItems = (items || []).slice(0, maxItems);
