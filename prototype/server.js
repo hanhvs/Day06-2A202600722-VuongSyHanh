@@ -69,7 +69,12 @@ const TravelSuggestionSchema = z.object({
   reason: z.string(),
   bestFor: z.string().default("tham quan nhẹ nhàng"),
   caution: z.string().default("Kiểm tra giờ mở cửa, phí và điều kiện thực tế trước khi đi."),
-  imageUrl: z.string().nullable().default(null)
+  imageUrl: z.string().nullable().default(null),
+  latitude: z.number().nullable().default(null),
+  longitude: z.number().nullable().default(null),
+  cityLatitude: z.number().nullable().default(null),
+  cityLongitude: z.number().nullable().default(null),
+  cityZoom: z.number().nullable().default(null)
 });
 
 const FlightResultSchema = z.object({
@@ -127,7 +132,7 @@ function normalizeText(value) {
   return String(value || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[đĐ]/g, "d")
+    .replace(/[\u0111\u0110]/g, "d")
     .toLowerCase();
 }
 
@@ -291,7 +296,7 @@ function withTravelImages(suggestions = []) {
   });
 }
 
-function detectTravelCity(message) {
+function detectTravelCityEnhanced(message) {
   const text = normalizeText(message);
   const cityAliases = [
     { city: "Đà Nẵng", patterns: [/da nang/, /danang/, /dad\b/] },
@@ -502,6 +507,343 @@ function buildTravelSuggestions(message) {
   };
 }
 
+const TRAVEL_CITY_DATA = {
+  "Đà Nẵng": {
+    center: { latitude: 16.0544, longitude: 108.2022, zoom: 12 },
+    spots: [
+      {
+        name: "Bãi biển Mỹ Khê",
+        city: "Đà Nẵng",
+        category: "Biển",
+        reason: "Đi bộ ven biển, đón gió và hợp với lịch trình hạ cánh rồi đi nhẹ một vòng.",
+        bestFor: "Thư giãn sau chuyến bay",
+        caution: "Buổi trưa nắng khá gắt; đẹp nhất vào sáng sớm hoặc cuối chiều.",
+        latitude: 16.0678,
+        longitude: 108.2453,
+        imageUrl: "https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=1200&q=80"
+      },
+      {
+        name: "Bán đảo Sơn Trà",
+        city: "Đà Nẵng",
+        category: "Thiên nhiên",
+        reason: "Tầm nhìn đẹp, có cảm giác thoát khỏi trung tâm rất nhanh và hợp cho buổi nửa ngày.",
+        bestFor: "Ngắm cảnh và chụp ảnh",
+        caution: "Nên đi khi thời tiết tốt và chủ động phương tiện di chuyển.",
+        latitude: 16.1214,
+        longitude: 108.2772,
+        imageUrl: "https://images.unsplash.com/photo-1583417319070-4a69db38a482?auto=format&fit=crop&w=1200&q=80"
+      },
+      {
+        name: "Chợ Cồn",
+        city: "Đà Nẵng",
+        category: "Ẩm thực",
+        reason: "Một điểm gọn để thử nhiều món địa phương nếu bạn muốn ăn nhanh mà vẫn nhiều lựa chọn.",
+        bestFor: "Ăn nhẹ và khám phá vị địa phương",
+        caution: "Đông hơn vào khung trưa và chiều tối.",
+        latitude: 16.0673,
+        longitude: 108.2147,
+        imageUrl: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=1200&q=80"
+      },
+      {
+        name: "Cầu Rồng",
+        city: "Đà Nẵng",
+        category: "Đi dạo",
+        reason: "Điểm chốt buổi tối rất hợp nếu bạn muốn kết thúc ngày bằng một vòng ven sông.",
+        bestFor: "Buổi tối và cặp đôi",
+        caution: "Cuối tuần khu vực quanh cầu thường đông hơn.",
+        latitude: 16.0615,
+        longitude: 108.2277,
+        imageUrl: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80"
+      }
+    ]
+  },
+  "Hà Nội": {
+    center: { latitude: 21.0285, longitude: 105.8542, zoom: 12 },
+    spots: [
+      {
+        name: "Hồ Hoàn Kiếm",
+        city: "Hà Nội",
+        category: "Đi dạo",
+        reason: "Rất dễ ghép với các điểm trung tâm khác và hợp cho lịch trình vài giờ.",
+        bestFor: "Lịch trình ngắn",
+        caution: "Khu trung tâm đông vào cuối tuần.",
+        latitude: 21.0287,
+        longitude: 105.8524,
+        imageUrl: "https://images.unsplash.com/photo-1583417319070-4a69db38a482?auto=format&fit=crop&w=1200&q=80"
+      },
+      {
+        name: "Văn Miếu - Quốc Tử Giám",
+        city: "Hà Nội",
+        category: "Văn hóa",
+        reason: "Không khí yên hơn, phù hợp nếu bạn muốn một điểm có chiều sâu văn hóa.",
+        bestFor: "Tham quan văn hóa",
+        caution: "Nên đi sớm để thoáng và dễ đi hơn.",
+        latitude: 21.0281,
+        longitude: 105.8357,
+        imageUrl: "https://images.unsplash.com/photo-1505739773745-e1d75d4f2d4d?auto=format&fit=crop&w=1200&q=80"
+      },
+      {
+        name: "Phố cổ Hà Nội",
+        city: "Hà Nội",
+        category: "Ẩm thực",
+        reason: "Hợp để ăn, đi bộ và cảm nhận nhịp thành phố trong cùng một khu vực.",
+        bestFor: "Ẩm thực và dạo phố",
+        caution: "Một số đoạn đông xe và khá nhộn vào giờ cao điểm.",
+        latitude: 21.0345,
+        longitude: 105.8502,
+        imageUrl: "https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?auto=format&fit=crop&w=1200&q=80"
+      },
+      {
+        name: "Hồ Tây",
+        city: "Hà Nội",
+        category: "Thư giãn",
+        reason: "Một nhịp chậm hơn, phù hợp ngồi cà phê hoặc ngắm hoàng hôn nhẹ nhàng.",
+        bestFor: "Cuối chiều và thư giãn",
+        caution: "Quãng di chuyển sẽ dài hơn nếu bạn ở khu phố cổ.",
+        latitude: 21.0555,
+        longitude: 105.8188,
+        imageUrl: "https://images.unsplash.com/photo-1467269204594-9661b134dd2b?auto=format&fit=crop&w=1200&q=80"
+      }
+    ]
+  },
+  "Hội An": {
+    center: { latitude: 15.8801, longitude: 108.338, zoom: 13 },
+    spots: [
+      {
+        name: "Phố cổ Hội An",
+        city: "Hội An",
+        category: "Di sản",
+        reason: "Đi bộ dễ, nhiều góc đẹp và rất hợp cho một buổi chiều hoặc tối.",
+        bestFor: "Chụp ảnh và đi bộ",
+        caution: "Chiều tối thường đông hơn rõ rệt.",
+        latitude: 15.8794,
+        longitude: 108.335,
+        imageUrl: "https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?auto=format&fit=crop&w=1200&q=80"
+      },
+      {
+        name: "Sông Hoài",
+        city: "Hội An",
+        category: "Đi dạo",
+        reason: "Không khí buổi tối rất đẹp và đi cùng đồ ăn nhẹ quanh khu trung tâm rất hợp.",
+        bestFor: "Buổi tối",
+        caution: "Nếu đông khách, nên đi bộ chậm và tránh giờ cao điểm.",
+        latitude: 15.8786,
+        longitude: 108.3346,
+        imageUrl: "https://images.unsplash.com/photo-1518509562904-e7ef99cdcc86?auto=format&fit=crop&w=1200&q=80"
+      },
+      {
+        name: "Làng rau Trà Quế",
+        city: "Hội An",
+        category: "Trải nghiệm",
+        reason: "Một lựa chọn khác phố cổ nếu bạn muốn không gian xanh và nhẹ.",
+        bestFor: "Gia đình và nhóm nhỏ",
+        caution: "Nên chủ động phương tiện vì không ở ngay lõi phố cổ.",
+        latitude: 15.9003,
+        longitude: 108.3512,
+        imageUrl: "https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=1200&q=80"
+      }
+    ]
+  },
+  "TP.HCM": {
+    center: { latitude: 10.7769, longitude: 106.7009, zoom: 12 },
+    spots: [
+      {
+        name: "Dinh Độc Lập",
+        city: "TP.HCM",
+        category: "Lịch sử",
+        reason: "Điểm trung tâm dễ vào lịch trình nếu bạn chỉ có nửa ngày.",
+        bestFor: "Tham quan nửa ngày",
+        caution: "Khung trưa khá nắng nếu đi bộ nhiều.",
+        latitude: 10.7771,
+        longitude: 106.6953,
+        imageUrl: "https://images.unsplash.com/photo-1584324991549-0fbf3fbe8f25?auto=format&fit=crop&w=1200&q=80"
+      },
+      {
+        name: "Bưu điện Thành phố",
+        city: "TP.HCM",
+        category: "Kiến trúc",
+        reason: "Gần nhiều điểm đẹp khác nên rất tiện nếu muốn đi bộ theo cụm.",
+        bestFor: "Lịch trình ngắn",
+        caution: "Khu vực này thường đông khách tham quan.",
+        latitude: 10.7798,
+        longitude: 106.699,
+        imageUrl: "https://images.unsplash.com/photo-1583416750470-965b2707b355?auto=format&fit=crop&w=1200&q=80"
+      },
+      {
+        name: "Chợ Bến Thành",
+        city: "TP.HCM",
+        category: "Ẩm thực",
+        reason: "Hợp để thử món nhanh hoặc mua quà ngay trong lõi trung tâm.",
+        bestFor: "Ẩm thực nhanh",
+        caution: "Nên hỏi giá trước nếu mua hàng lưu niệm.",
+        latitude: 10.7725,
+        longitude: 106.698,
+        imageUrl: "https://images.unsplash.com/photo-1542365887-1115d7b25f4c?auto=format&fit=crop&w=1200&q=80"
+      },
+      {
+        name: "Phố đi bộ Nguyễn Huệ",
+        city: "TP.HCM",
+        category: "Đi dạo",
+        reason: "Không khí sáng đèn và thoải mái hơn vào cuối ngày.",
+        bestFor: "Buổi tối",
+        caution: "Đẹp nhất từ cuối chiều đến tối.",
+        latitude: 10.7731,
+        longitude: 106.7042,
+        imageUrl: "https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=1200&q=80"
+      }
+    ]
+  },
+  "Nha Trang": {
+    center: { latitude: 12.2388, longitude: 109.1967, zoom: 12 },
+    spots: [
+      {
+        name: "Bãi biển Nha Trang",
+        city: "Nha Trang",
+        category: "Biển",
+        reason: "Dễ tiếp cận và hợp cho khoảng nghỉ nhẹ khi không có nhiều thời gian.",
+        bestFor: "Thư giãn",
+        caution: "Buổi trưa nắng mạnh và khá nóng.",
+        latitude: 12.2316,
+        longitude: 109.1984,
+        imageUrl: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80"
+      },
+      {
+        name: "Tháp Bà Ponagar",
+        city: "Nha Trang",
+        category: "Văn hóa",
+        reason: "Một điểm có dấu ấn địa phương rõ nhưng không cần dành cả ngày.",
+        bestFor: "Tham quan văn hóa",
+        caution: "Nên tránh giờ trưa nếu bạn không thích nắng.",
+        latitude: 12.2654,
+        longitude: 109.1953,
+        imageUrl: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80"
+      }
+    ]
+  },
+  "Huế": {
+    center: { latitude: 16.4637, longitude: 107.5909, zoom: 12 },
+    spots: [
+      {
+        name: "Đại Nội Huế",
+        city: "Huế",
+        category: "Di sản",
+        reason: "Điểm đầu tiên hợp lý nếu bạn muốn cảm nhận lịch sử và kiến trúc Huế.",
+        bestFor: "Văn hóa",
+        caution: "Khu tham quan khá rộng; đi giày thoải mái sẽ dễ hơn.",
+        latitude: 16.4704,
+        longitude: 107.5776,
+        imageUrl: "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1200&q=80"
+      },
+      {
+        name: "Sông Hương",
+        city: "Huế",
+        category: "Thư giãn",
+        reason: "Hợp với một buổi chiều chậm, nhìn thành phố nhẹ và thoáng.",
+        bestFor: "Cuối chiều",
+        caution: "Hợp nhất với lịch trình nhẹ thay vì chạy nhiều điểm liên tiếp.",
+        latitude: 16.4663,
+        longitude: 107.5955,
+        imageUrl: "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1200&q=80"
+      }
+    ]
+  },
+  "Phú Quốc": {
+    center: { latitude: 10.2899, longitude: 103.984, zoom: 11 },
+    spots: [
+      {
+        name: "Bãi Sao",
+        city: "Phú Quốc",
+        category: "Biển",
+        reason: "Hợp với kiểu nghỉ dưỡng và tắm biển nhẹ nhàng.",
+        bestFor: "Thư giãn",
+        caution: "Di chuyển xa hơn nếu bạn đang ở thị trấn Dương Đông.",
+        latitude: 10.0357,
+        longitude: 104.0355,
+        imageUrl: "https://images.unsplash.com/photo-1500375592092-40eb2168fd21?auto=format&fit=crop&w=1200&q=80"
+      },
+      {
+        name: "Chợ đêm Phú Quốc",
+        city: "Phú Quốc",
+        category: "Ẩm thực",
+        reason: "Phù hợp cho buổi tối, ăn nhẹ và đi dạo trong một cụm gọn.",
+        bestFor: "Buổi tối",
+        caution: "Thường đông từ sau 18h.",
+        latitude: 10.2205,
+        longitude: 103.9598,
+        imageUrl: "https://images.unsplash.com/photo-1523906630133-f6934a1ab2b9?auto=format&fit=crop&w=1200&q=80"
+      }
+    ]
+  }
+};
+
+function withTravelMetadata(city, suggestions = []) {
+  const center = TRAVEL_CITY_DATA[city]?.center || null;
+  return suggestions.map((item) => {
+    const query = encodeURIComponent(`${item.name || ""} ${city || item.city || ""} Vietnam travel`.trim());
+    return {
+      ...item,
+      city: item.city || city || null,
+      imageUrl: item.imageUrl || `https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80&hint=${query}`,
+      latitude: item.latitude ?? null,
+      longitude: item.longitude ?? null,
+      cityLatitude: center?.latitude ?? null,
+      cityLongitude: center?.longitude ?? null,
+      cityZoom: center?.zoom ?? 12
+    };
+  });
+}
+
+function detectTravelCity(message) {
+  const text = normalizeText(message);
+  const cityAliases = [
+    { city: "Đà Nẵng", patterns: [/da nang/, /danang/, /dad\b/] },
+    { city: "Hà Nội", patterns: [/ha noi/, /hanoi/, /\bhan\b/] },
+    { city: "Hội An", patterns: [/hoi an/] },
+    { city: "TP.HCM", patterns: [/tp\.?hcm/, /ho chi minh/, /sai gon/, /saigon/, /\bsgn\b/] },
+    { city: "Nha Trang", patterns: [/nha trang/] },
+    { city: "Huế", patterns: [/\bhue\b/] },
+    { city: "Phú Quốc", patterns: [/phu quoc/] }
+  ];
+
+  return cityAliases.find(({ patterns }) => patterns.some((pattern) => pattern.test(text)))?.city || null;
+}
+
+function buildTravelSuggestionsEnhanced(message) {
+  const city = detectTravelCityEnhanced(message);
+  const cityData = city ? TRAVEL_CITY_DATA[city] : null;
+  const genericSuggestions = [
+    {
+      name: "Khu trung tâm thành phố",
+      city,
+      category: "Đi dạo",
+      reason: "Hợp để lấy nhịp nhanh, ăn nhẹ và đi bộ trước khi chốt lịch trình chi tiết hơn.",
+      bestFor: "Lịch trình ngắn",
+      caution: "Nên ưu tiên khu gần nơi lưu trú để tiết kiệm thời gian."
+    },
+    {
+      name: "Một điểm văn hóa hoặc bảo tàng gần nơi ở",
+      city,
+      category: "Văn hóa",
+      reason: "Giúp chuyến đi có điểm nhấn mà không cần di chuyển quá xa.",
+      bestFor: "Tham quan nhẹ",
+      caution: "Nên kiểm tra giờ mở cửa trước khi đi."
+    },
+    {
+      name: "Khu ẩm thực địa phương",
+      city,
+      category: "Ẩm thực",
+      reason: "Phù hợp khi bạn muốn trải nghiệm nhanh sau chuyến bay hoặc trước giờ về.",
+      bestFor: "Ăn nhẹ",
+      caution: "Nếu đi giờ cao điểm, nên chừa thêm thời gian tìm chỗ ngồi."
+    }
+  ];
+
+  return {
+    city,
+    suggestions: withTravelMetadata(city, cityData ? cityData.spots : genericSuggestions)
+  };
+}
+
 function mergeKnownInfo(message, state = {}) {
   const text = normalizeText(message);
   const prior = state.knownInfo || {};
@@ -534,7 +876,7 @@ function mergeKnownInfo(message, state = {}) {
   const routeMatch = message.match(/([A-ZÀ-Ỵa-zà-ỵ\s]{2,24})\s*[-–]\s*([A-ZÀ-Ỵa-zà-ỵ\s]{2,24})/);
   if (routeMatch) knownInfo.route = `${routeMatch[1].trim()} - ${routeMatch[2].trim()}`;
 
-  const travelCity = detectTravelCity(message);
+  const travelCity = detectTravelCityEnhanced(message);
   if (travelCity && /(di choi|choi gi|tham quan|du lich|goi y|dia diem|an uong|lich trinh|places|attractions|where to go|layla)/.test(text)) {
     knownInfo.route = travelCity;
   }
@@ -1159,8 +1501,8 @@ function applyRiskGuardrails(result, message, state = {}) {
     result.nextQuestions = nextQuestionsFor(result.selectedIntent, result.missingInfo);
     result.actionChecklist = checklistFor(result.selectedIntent, result.riskLevel, knownInfo);
     if (result.selectedIntent === "travel_place_recommendation") {
-      const travelData = buildTravelSuggestions(message);
-      result.travelSuggestions = result.travelSuggestions?.length ? result.travelSuggestions : travelData.suggestions;
+      const travelData = buildTravelSuggestionsEnhanced(message);
+      result.travelSuggestions = travelData.suggestions;
     } else {
       result.travelSuggestions = [];
     }
@@ -1261,7 +1603,7 @@ function fallbackTriage(message, conversationState = {}, fallbackReason = "LLM u
     riskSignals: [fallbackReason],
     nextQuestions: nextQuestionsFor(effectiveIntent, missingInfo),
     actionChecklist: checklistFor(effectiveIntent, riskLevel, knownInfo),
-    travelSuggestions: effectiveIntent === "travel_place_recommendation" ? buildTravelSuggestions(message).suggestions : [],
+    travelSuggestions: effectiveIntent === "travel_place_recommendation" ? buildTravelSuggestionsEnhanced(message).suggestions : [],
     customerAnswer: customerAnswerFor(effectiveIntent, knownInfo, riskLevel),
     handoffSummary: shouldHandoff ? makeHandoffSummary(effectiveIntent, knownInfo, missingInfo, riskLevel) : "",
     shouldHandoff,
@@ -1303,7 +1645,7 @@ Always return JSON matching this shape (intents enum below is exhaustive):
   "riskSignals": ["string"],
   "nextQuestions": ["string"],
   "actionChecklist": ["string"],
-  "travelSuggestions": [{"name": "string", "city": "string|null", "category": "string", "reason": "string", "bestFor": "string", "caution": "string", "imageUrl": "string|null"}],
+  "travelSuggestions": [{"name": "string", "city": "string|null", "category": "string", "reason": "string", "bestFor": "string", "caution": "string", "imageUrl": "string|null", "latitude": 0, "longitude": 0, "cityLatitude": 0, "cityLongitude": 0, "cityZoom": 12}],
   "flightResults": [{"flightNumber": "VN217", "airline": "Vietnam Airlines", "status": "scheduled|active|landed|cancelled|incident|diverted", "departureIata": "HAN", "departureAirport": "Noibai International", "departureScheduled": "17:00", "departureEstimated": "17:10", "arrivalIata": "SGN", "arrivalAirport": "Tan Son Nhat International", "arrivalScheduled": "19:10", "arrivalEstimated": null, "delayMinutes": 10}],
   "customerAnswer": "friendly answer to the passenger in Vietnamese",
   "handoffSummary": "string",
