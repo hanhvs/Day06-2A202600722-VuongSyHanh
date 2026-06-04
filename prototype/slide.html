@@ -446,7 +446,73 @@
         object-position: center top;
         background: var(--surface-soft);
         border-bottom: 1px solid var(--border);
+        cursor: zoom-in;
+        transition: filter 0.15s;
       }
+
+      .evidence-card img:hover { filter: brightness(0.96); }
+
+      .lightbox {
+        position: fixed;
+        inset: 0;
+        background: rgba(10, 26, 44, 0.88);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+        padding: 40px;
+        cursor: zoom-out;
+        opacity: 0;
+        transition: opacity 0.2s;
+      }
+
+      .lightbox.open {
+        display: flex;
+        opacity: 1;
+      }
+
+      .lightbox img {
+        max-width: 100%;
+        max-height: 100%;
+        border-radius: 10px;
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+        cursor: default;
+      }
+
+      .lightbox-close {
+        position: absolute;
+        top: 20px;
+        right: 24px;
+        width: 44px;
+        height: 44px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12);
+        border: none;
+        color: white;
+        font-size: 22px;
+        font-weight: 700;
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        line-height: 1;
+      }
+
+      .lightbox-close:hover { background: rgba(255, 255, 255, 0.22); }
+
+      .lightbox-caption {
+        position: absolute;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: var(--muted-on-dark);
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.4px;
+      }
+
+      body.lightbox-open { overflow: hidden; }
 
       .evidence-card .body {
         padding: 18px 22px 22px;
@@ -473,6 +539,123 @@
       }
 
       .evidence-card p { color: var(--muted); margin: 0; font-size: 14.5px; line-height: 1.55; }
+
+      .evidence-card .tag.opportunity {
+        color: var(--accent);
+        background: var(--accent-soft);
+      }
+
+      .evidence-card .tag.featured {
+        color: white;
+        background: var(--accent);
+      }
+
+      .evidence-card.featured {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-soft), 0 12px 36px -16px rgba(18, 100, 196, 0.32);
+        position: relative;
+      }
+
+      .evidence-card.featured .preview {
+        background: linear-gradient(180deg, var(--accent-soft), #ffffff);
+      }
+
+      .featured-ribbon {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        background: var(--accent);
+        color: white;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        padding: 5px 10px;
+        border-radius: 999px;
+        box-shadow: 0 6px 14px -6px rgba(18, 100, 196, 0.5);
+      }
+
+      .preview {
+        height: 280px;
+        padding: 18px 20px;
+        background: var(--surface-soft);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        font-family: "SF Mono", Menlo, Consolas, monospace;
+        font-size: 12.5px;
+        line-height: 1.5;
+        overflow: hidden;
+      }
+
+      .preview .bubble {
+        padding: 10px 12px;
+        border-radius: 10px;
+        max-width: 88%;
+      }
+
+      .preview .bubble.user {
+        align-self: flex-end;
+        background: var(--navy);
+        color: white;
+      }
+
+      .preview .bubble.bot {
+        align-self: flex-start;
+        background: white;
+        border: 1px solid var(--border);
+        color: var(--text);
+      }
+
+      .preview .flight-mini {
+        display: grid;
+        gap: 4px;
+        margin-top: 6px;
+      }
+
+      .preview .flight-mini .row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 9px;
+        background: var(--surface-soft);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-size: 11.5px;
+      }
+
+      .preview .flight-mini .row.more {
+        background: none;
+        border-style: dashed;
+        color: var(--muted);
+        justify-content: center;
+        font-style: italic;
+      }
+
+      .preview .flight-mini .code-cell {
+        font-weight: 800;
+        color: var(--navy);
+        letter-spacing: 0.4px;
+        flex: 0 0 56px;
+      }
+
+      .preview .flight-mini .time-cell {
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .preview .flight-mini .badge {
+        font-size: 10px;
+        text-transform: uppercase;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        padding: 1px 6px;
+        border-radius: 999px;
+        background: var(--green-soft);
+        color: var(--green);
+      }
 
       /* ===== DARK SECTION ===== */
       .dark {
@@ -948,16 +1131,16 @@
     <!-- ===== EVIDENCE ===== -->
     <section id="evidence" style="background: var(--bg-alt); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
       <div class="container">
-        <div class="eyebrow">02 · Evidence (self-use NEO)</div>
-        <h2>Bốn finding cho bốn lỗ hổng.</h2>
-        <p class="lede">Mỗi ảnh là một lần dùng NEO thật, một quyết định product cần làm khác đi.</p>
+        <div class="eyebrow">02 · Evidence</div>
+        <h2>Hai pain. Hai flow chính.</h2>
+        <p class="lede">Hai ảnh trên — pain thật từ self-use NEO. Hai mock dưới — flow mới NEO sẽ giải quyết. Flow X2 (route search) là use case demo chính.</p>
       </div>
       <div class="container reveal" style="margin-top: 56px;">
         <div class="evidence-grid">
           <article class="evidence-card">
             <img src="/evidence/Screenshot_2026-06-03_151509.png" alt="G1 — Multi-intent" loading="lazy" />
             <div class="body">
-              <span class="tag">G1 — Multi-intent</span>
+              <span class="tag">G1 — Pain · Multi-intent</span>
               <h4>User hỏi 3 thứ trong 1 câu, bot trả 1 đoạn dài.</h4>
               <p>→ SPEC: thêm <code>detectedIssues[]</code> + <code>needsIntentSelection=true</code>, hỏi user chọn xử lý mục nào trước.</p>
             </div>
@@ -965,25 +1148,63 @@
           <article class="evidence-card">
             <img src="/evidence/Screenshot_2026-06-03_151533.png" alt="G2 — Risk" loading="lazy" />
             <div class="body">
-              <span class="tag">G2 — Risk</span>
+              <span class="tag">G2 — Pain · Risk</span>
               <h4>Case tiền/vé lỗi (rủi ro cao) bị trả như câu hỏi thường.</h4>
               <p>→ SPEC: deterministic risk guardrails — "tiền đã trừ" luôn <code>riskLevel = High</code>, <code>shouldHandoff = true</code>.</p>
             </div>
           </article>
+
           <article class="evidence-card">
-            <img src="/evidence/Screenshot_2026-06-03_151556.png" alt="G3 — Missing info" loading="lazy" />
+            <div class="preview">
+              <div class="bubble user">Chuyến VN217 hôm nay sao rồi?</div>
+              <div class="bubble bot">
+                NEO đang tra Aviationstack…
+                <div class="flight-mini">
+                  <div class="row">
+                    <span class="code-cell">VN217</span>
+                    <span class="time-cell">HAN 17:00 → SGN 19:10</span>
+                    <span class="badge">Đúng lịch</span>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div class="body">
-              <span class="tag">G3 — Missing info</span>
-              <h4>Bot hỏi lại chung chung "anh cần gì".</h4>
-              <p>→ SPEC: per-intent <code>missingInfo[]</code> checklist + concrete <code>nextQuestions[]</code> bằng tiếng Việt.</p>
+              <span class="tag opportunity">X1 — Flow · Tra mã chuyến</span>
+              <h4>Hỏi cụ thể 1 mã hiệu chuyến bay.</h4>
+              <p>→ LLM tự gọi <code>search_flights({flight_iata: "VN217"})</code>, render 1 card chi tiết: status, giờ scheduled vs estimated, delay nếu có.</p>
             </div>
           </article>
-          <article class="evidence-card">
-            <img src="/evidence/Screenshot_2026-06-03_151628.png" alt="G4 — Context loss" loading="lazy" />
+
+          <article class="evidence-card featured">
+            <span class="featured-ribbon">Flow chính · Demo</span>
+            <div class="preview">
+              <div class="bubble user">Tìm chuyến bay HAN to SGN</div>
+              <div class="bubble bot">
+                Có 282 chuyến HAN → SGN hôm nay, hiển thị 25:
+                <div class="flight-mini">
+                  <div class="row">
+                    <span class="code-cell">VN249</span>
+                    <span class="time-cell">15:30 → 17:45</span>
+                    <span class="badge">scheduled</span>
+                  </div>
+                  <div class="row">
+                    <span class="code-cell">QH251</span>
+                    <span class="time-cell">16:15 → 18:30</span>
+                    <span class="badge">scheduled</span>
+                  </div>
+                  <div class="row">
+                    <span class="code-cell">VJ151</span>
+                    <span class="time-cell">16:50 → 19:00</span>
+                    <span class="badge">scheduled</span>
+                  </div>
+                  <div class="row more">+22 chuyến khác · sort theo giờ khởi hành</div>
+                </div>
+              </div>
+            </div>
             <div class="body">
-              <span class="tag">G4 — Context loss</span>
-              <h4>User cấp context rồi vẫn bị hỏi lại từ đầu.</h4>
-              <p>→ SPEC: <code>knownInfo</code> persist qua các lượt, correction path giữ <code>paymentDeducted=true</code>.</p>
+              <span class="tag featured">X2 — Flow chính · Route search</span>
+              <h4>Tìm danh sách chuyến bay từ A → B để so sánh.</h4>
+              <p>→ LLM gọi <code>search_flights({dep_iata, arr_iata})</code>, server normalize + dedupe + sort. UI render full list cards đa hãng. <strong>Use case build chính của Day 06.</strong></p>
             </div>
           </article>
         </div>
@@ -1369,6 +1590,12 @@
       </div>
     </footer>
 
+    <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Phóng to ảnh">
+      <button class="lightbox-close" type="button" aria-label="Đóng">✕</button>
+      <img alt="" />
+      <span class="lightbox-caption">Bấm bất kỳ đâu hoặc Esc để đóng</span>
+    </div>
+
     <script>
       (function () {
         const els = document.querySelectorAll(".reveal");
@@ -1384,6 +1611,39 @@
           { rootMargin: "0px 0px -80px 0px", threshold: 0.05 }
         );
         els.forEach((el) => io.observe(el));
+
+        const lightbox = document.getElementById("lightbox");
+        const lbImg = lightbox.querySelector("img");
+        const lbClose = lightbox.querySelector(".lightbox-close");
+
+        function openLightbox(src, alt) {
+          lbImg.src = src;
+          lbImg.alt = alt || "";
+          lightbox.classList.add("open");
+          document.body.classList.add("lightbox-open");
+        }
+
+        function closeLightbox() {
+          lightbox.classList.remove("open");
+          document.body.classList.remove("lightbox-open");
+          setTimeout(() => { lbImg.src = ""; }, 200);
+        }
+
+        document.querySelectorAll(".evidence-card img").forEach((img) => {
+          img.addEventListener("click", () => openLightbox(img.src, img.alt));
+        });
+
+        lightbox.addEventListener("click", (e) => {
+          if (e.target === lbImg) return;
+          closeLightbox();
+        });
+        lbClose.addEventListener("click", (e) => {
+          e.stopPropagation();
+          closeLightbox();
+        });
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "Escape" && lightbox.classList.contains("open")) closeLightbox();
+        });
       })();
     </script>
   </body>

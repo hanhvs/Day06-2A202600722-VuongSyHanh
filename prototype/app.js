@@ -14,8 +14,11 @@ const defaultKnownInfo = {
 const defaultState = {
   selectedIntent: null,
   detectedIssues: [],
-  knownInfo: structuredClone(defaultKnownInfo)
+  knownInfo: structuredClone(defaultKnownInfo),
+  messageHistory: []
 };
+
+const MAX_HISTORY = 20;
 
 let conversationState = structuredClone(defaultState);
 let lastResponse = null;
@@ -403,7 +406,11 @@ function seedCorrectionDemoState() {
       ...structuredClone(defaultKnownInfo),
       paymentDeducted: true,
       emailStatus: "chưa nhận email xác nhận"
-    }
+    },
+    messageHistory: [
+      { role: "user", content: "Tôi đã thanh toán vé nhưng chưa nhận được email xác nhận, tiền đã trừ." },
+      { role: "assistant", content: "Mình hiểu bạn đang gặp vấn đề với vé. Vì tiền đã trừ và chưa có xác nhận, mình cần chuẩn bị thông tin để chuyển nhân viên hỗ trợ." }
+    ]
   };
   renderState();
 }
@@ -532,13 +539,22 @@ function updateState(response) {
     knownInfo: {
       ...conversationState.knownInfo,
       ...(response.knownInfo || {})
-    }
+    },
+    messageHistory: conversationState.messageHistory || []
   };
+}
+
+function pushHistory(role, content) {
+  if (!content) return;
+  const history = (conversationState.messageHistory || []).slice();
+  history.push({ role, content: String(content).slice(0, 2000) });
+  conversationState.messageHistory = history.slice(-MAX_HISTORY);
 }
 
 function renderResponse(response) {
   lastResponse = response;
   updateState(response);
+  if (response.customerAnswer) pushHistory("assistant", response.customerAnswer);
   appendAssistantMessage(buildAssistantReply(response));
 
   const selectedLabel = response.selectedIntent
@@ -589,6 +605,7 @@ async function runTriage(message) {
   if (!trimmed) return;
 
   appendUserMessage(trimmed);
+  pushHistory("user", trimmed);
   messageInput.value = "";
   submitButton.disabled = true;
   submitButton.textContent = "Đang gửi…";

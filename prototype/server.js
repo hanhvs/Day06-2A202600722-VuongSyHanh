@@ -98,12 +98,20 @@ const TriageResponseSchema = z.object({
   safetyNotice: z.string().default("Prototype demo, không xác nhận giao dịch thật và không truy cập dữ liệu booking nội bộ.")
 });
 
+const MessageHistorySchema = z.array(
+  z.object({
+    role: z.enum(["user", "assistant"]),
+    content: z.string()
+  })
+).default([]);
+
 const TriageRequestSchema = z.object({
   message: z.string().min(1),
   conversationState: z.object({
     selectedIntent: IntentEnum.nullable().optional(),
     knownInfo: KnownInfoSchema.partial().optional(),
-    detectedIssues: z.array(IssueSchema).optional()
+    detectedIssues: z.array(IssueSchema).optional(),
+    messageHistory: MessageHistorySchema.optional()
   }).passthrough().default({})
 });
 
@@ -984,6 +992,20 @@ Tools available:
   - If other error, say so in customerAnswer honestly and ask user to try again later.
   - You may call the tool at most twice per turn.
 
+Conversation history:
+- Prior user/assistant turns are provided as separate role messages before this user turn. The "message" field in the user JSON is ONLY the latest user message.
+- Treat short follow-up replies (just a city name, "có"/"không", a flight code, a date, "tối nay", …) as CONTINUATIONS of the most recent unresolved question — do NOT restart from scratch.
+- Example: if you just asked "bạn muốn biết thời tiết ở thành phố nào?" and user replies "Hà Nội", you are still in a weather conversation, NOT a travel_place_recommendation conversation.
+- The "conversationState" inside user JSON only carries selectedIntent / knownInfo / detectedIssues from the previous turn (not text). Combine with the role messages above to reconstruct context.
+
+Out of scope (NEO does NOT have tools/data for these):
+- Weather forecast (today / tomorrow / hourly).
+- Hotel / restaurant / tour booking and availability.
+- Currency exchange, prices, fares (NEO does not know ticket price).
+- Visa rules of foreign countries (only general guidance about flight documents).
+- Realtime traffic, road conditions.
+When user asks any of these, answer briefly in Vietnamese: nói thẳng NEO không có dữ liệu đó, gợi ý nguồn ngoài phù hợp (app dự báo thời tiết, agoda/booking, website ngân hàng, đại sứ quán…). Use intent general_vna_question. DO NOT fall back to travel_place_recommendation as catch-all. DO NOT generate travelSuggestions for these.
+
 Rules:
 - Product is Vietnam Airlines NEO, Track B Travel & Hospitality.
 - The chatbot can answer general Vietnam Airlines questions, but the improved slice is stronger handling for vague, multi-intent, high-risk, and flight-status cases.
@@ -1079,13 +1101,26 @@ async function callOpenAI(message, conversationState, onEvent) {
     timeout: LLM_TIMEOUT_MS
   });
 
+  const rawHistory = Array.isArray(conversationState?.messageHistory) ? conversationState.messageHistory : [];
+  const history = rawHistory.slice(-10).map((m) => ({
+    role: m.role === "assistant" ? "assistant" : "user",
+    content: String(m.content || "").slice(0, 2000)
+  }));
+
+  const stateForLLM = {
+    selectedIntent: conversationState?.selectedIntent ?? null,
+    knownInfo: conversationState?.knownInfo ?? {},
+    detectedIssues: conversationState?.detectedIssues ?? []
+  };
+
   const messages = [
     { role: "system", content: buildSystemPrompt() },
+    ...history,
     {
       role: "user",
       content: JSON.stringify({
         message,
-        conversationState,
+        conversationState: stateForLLM,
         currentDateVN: nowInVietnamISO()
       })
     }
