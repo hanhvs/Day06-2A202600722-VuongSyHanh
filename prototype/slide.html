@@ -552,12 +552,187 @@
 
       .evidence-card.featured {
         border-color: var(--accent);
-        box-shadow: 0 0 0 3px var(--accent-soft), 0 12px 36px -16px rgba(18, 100, 196, 0.32);
+        box-shadow: 0 0 0 3px var(--accent-soft), 0 16px 48px -16px rgba(18, 100, 196, 0.35);
         position: relative;
       }
 
       .evidence-card.featured .preview {
         background: linear-gradient(180deg, var(--accent-soft), #ffffff);
+      }
+
+      /* Hero featured card (full-width, big) */
+      .flow-hero {
+        display: grid;
+        grid-template-columns: 1.15fr 1fr;
+        gap: 0;
+        background: var(--surface);
+        border: 1px solid var(--accent);
+        border-radius: 18px;
+        overflow: hidden;
+        position: relative;
+        box-shadow: 0 0 0 4px var(--accent-soft), 0 24px 60px -20px rgba(18, 100, 196, 0.32);
+      }
+
+      .flow-hero .preview {
+        height: auto;
+        min-height: 420px;
+        padding: 28px 32px;
+        background: linear-gradient(180deg, var(--accent-soft), #ffffff);
+        border-bottom: none;
+        border-right: 1px solid var(--border);
+        gap: 12px;
+      }
+
+      .flow-hero .preview .bubble { font-size: 14px; padding: 12px 14px; }
+      .flow-hero .preview .flight-mini .row { padding: 7px 11px; font-size: 13px; }
+      .flow-hero .preview .flight-mini .code-cell { flex-basis: 64px; font-size: 13px; }
+
+      .flow-hero .body {
+        padding: 32px 36px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 14px;
+      }
+
+      .flow-hero .tag {
+        align-self: flex-start;
+        font-size: 12px;
+        letter-spacing: 1.6px;
+        padding: 5px 12px;
+        background: var(--accent);
+        color: white;
+        border-radius: 999px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .flow-hero h3 {
+        margin: 0;
+        font-size: 30px;
+        line-height: 1.15;
+        letter-spacing: -0.8px;
+      }
+
+      .flow-hero p {
+        margin: 0;
+        font-size: 16px;
+        line-height: 1.55;
+        color: var(--muted);
+      }
+
+      .flow-hero .ribbon {
+        position: absolute;
+        top: 18px;
+        right: 18px;
+        background: var(--accent);
+        color: white;
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1.4px;
+        padding: 8px 16px;
+        border-radius: 999px;
+        box-shadow: 0 10px 22px -8px rgba(18, 100, 196, 0.55);
+      }
+
+      /* Backlog row */
+      .flow-backlog-heading {
+        margin: 64px 0 18px;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      .flow-backlog-heading h3 {
+        margin: 0;
+        font-size: 19px;
+        color: var(--muted);
+        letter-spacing: -0.2px;
+        font-weight: 700;
+      }
+
+      .flow-backlog-heading small {
+        font-size: 13px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 1.4px;
+        font-weight: 700;
+      }
+
+      .flow-backlog {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+      }
+
+      .flow-backlog .card-min {
+        padding: 20px 22px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        opacity: 0.78;
+        filter: grayscale(18%);
+        transition: opacity 0.2s, filter 0.2s, transform 0.2s;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .flow-backlog .card-min:hover {
+        opacity: 1;
+        filter: none;
+        transform: translateY(-2px);
+      }
+
+      .flow-backlog .card-min .meta-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        align-self: flex-start;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        color: var(--muted);
+        padding: 3px 9px;
+        border-radius: 999px;
+        background: var(--surface-soft);
+        border: 1px solid var(--border);
+      }
+
+      .flow-backlog .card-min h4 {
+        margin: 4px 0 2px;
+        font-size: 15px;
+        text-transform: none;
+        letter-spacing: -0.2px;
+        color: var(--navy);
+      }
+
+      .flow-backlog .card-min p {
+        margin: 0;
+        font-size: 13.5px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .flow-backlog .card-min .example {
+        font-family: "SF Mono", Menlo, Consolas, monospace;
+        font-size: 12px;
+        color: var(--muted);
+        background: var(--surface-soft);
+        padding: 6px 10px;
+        border-radius: 6px;
+        margin-top: 4px;
+        border: 1px solid var(--border);
+      }
+
+      @media (max-width: 980px) {
+        .flow-hero { grid-template-columns: 1fr; }
+        .flow-hero .preview { border-right: none; border-bottom: 1px solid var(--border); }
+        .flow-backlog { grid-template-columns: 1fr; }
       }
 
       .featured-ribbon {
@@ -1131,81 +1306,77 @@
     <!-- ===== EVIDENCE ===== -->
     <section id="evidence" style="background: var(--bg-alt); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
       <div class="container">
-        <div class="eyebrow">02 · Evidence</div>
-        <h2>Hai pain. Hai flow chính.</h2>
-        <p class="lede">Hai ảnh trên — pain thật từ self-use NEO. Hai mock dưới — flow mới NEO sẽ giải quyết. Flow X2 (route search) là use case demo chính.</p>
+        <div class="eyebrow">02 · Flow</div>
+        <h2>Một flow chính cho Day 06. Ba flow vào backlog.</h2>
+        <p class="lede">Nhóm xác định 4 flow user có thể chạm vào NEO. Day 06 chỉ chọn 1 để build sâu và demo — flow tìm chuyến bay theo tuyến A → B. 3 flow còn lại đã có pain rõ ràng nhưng sẽ xử lý ở phase sau, để Day 06 không spread quá mỏng.</p>
       </div>
+
+      <!-- Featured flow -->
       <div class="container reveal" style="margin-top: 56px;">
-        <div class="evidence-grid">
-          <article class="evidence-card">
-            <img src="/evidence/Screenshot_2026-06-03_151509.png" alt="G1 — Multi-intent" loading="lazy" />
-            <div class="body">
-              <span class="tag">G1 — Pain · Multi-intent</span>
-              <h4>User hỏi 3 thứ trong 1 câu, bot trả 1 đoạn dài.</h4>
-              <p>→ SPEC: thêm <code>detectedIssues[]</code> + <code>needsIntentSelection=true</code>, hỏi user chọn xử lý mục nào trước.</p>
-            </div>
-          </article>
-          <article class="evidence-card">
-            <img src="/evidence/Screenshot_2026-06-03_151533.png" alt="G2 — Risk" loading="lazy" />
-            <div class="body">
-              <span class="tag">G2 — Pain · Risk</span>
-              <h4>Case tiền/vé lỗi (rủi ro cao) bị trả như câu hỏi thường.</h4>
-              <p>→ SPEC: deterministic risk guardrails — "tiền đã trừ" luôn <code>riskLevel = High</code>, <code>shouldHandoff = true</code>.</p>
-            </div>
-          </article>
-
-          <article class="evidence-card">
-            <div class="preview">
-              <div class="bubble user">Chuyến VN217 hôm nay sao rồi?</div>
-              <div class="bubble bot">
-                NEO đang tra Aviationstack…
-                <div class="flight-mini">
-                  <div class="row">
-                    <span class="code-cell">VN217</span>
-                    <span class="time-cell">HAN 17:00 → SGN 19:10</span>
-                    <span class="badge">Đúng lịch</span>
-                  </div>
+        <article class="flow-hero">
+          <span class="ribbon">Flow chính · Build & demo Day 06</span>
+          <div class="preview">
+            <div class="bubble user">Tìm chuyến bay HAN to SGN</div>
+            <div class="bubble bot">
+              Có 282 chuyến HAN → SGN hôm nay, hiển thị 25:
+              <div class="flight-mini">
+                <div class="row">
+                  <span class="code-cell">VN249</span>
+                  <span class="time-cell">15:30 → 17:45</span>
+                  <span class="badge">scheduled</span>
                 </div>
+                <div class="row">
+                  <span class="code-cell">QH251</span>
+                  <span class="time-cell">16:15 → 18:30</span>
+                  <span class="badge">scheduled</span>
+                </div>
+                <div class="row">
+                  <span class="code-cell">VJ151</span>
+                  <span class="time-cell">16:50 → 19:00</span>
+                  <span class="badge">scheduled</span>
+                </div>
+                <div class="row">
+                  <span class="code-cell">VN217</span>
+                  <span class="time-cell">17:00 → 19:10</span>
+                  <span class="badge">scheduled</span>
+                </div>
+                <div class="row more">+21 chuyến khác · sort theo giờ khởi hành</div>
               </div>
             </div>
-            <div class="body">
-              <span class="tag opportunity">X1 — Flow · Tra mã chuyến</span>
-              <h4>Hỏi cụ thể 1 mã hiệu chuyến bay.</h4>
-              <p>→ LLM tự gọi <code>search_flights({flight_iata: "VN217"})</code>, render 1 card chi tiết: status, giờ scheduled vs estimated, delay nếu có.</p>
-            </div>
-          </article>
+          </div>
+          <div class="body">
+            <span class="tag">X2 · Route search</span>
+            <h3>Tìm danh sách chuyến bay từ A → B để so sánh.</h3>
+            <p>LLM tự gọi <code>search_flights({dep_iata, arr_iata})</code>, server normalize + dedupe + sort theo giờ khởi hành, UI render full list cards đa hãng cho user tự so sánh. End-to-end qua function calling + SSE streaming.</p>
+            <p><strong style="color: var(--navy);">Vì sao chọn flow này:</strong> demo được toàn bộ pipeline (LLM ↔ tool ↔ guardrails ↔ UI cards) trong 1 use case, lại có dữ liệu thật từ Aviationstack — không phải mock.</p>
+          </div>
+        </article>
+      </div>
 
-          <article class="evidence-card featured">
-            <span class="featured-ribbon">Flow chính · Demo</span>
-            <div class="preview">
-              <div class="bubble user">Tìm chuyến bay HAN to SGN</div>
-              <div class="bubble bot">
-                Có 282 chuyến HAN → SGN hôm nay, hiển thị 25:
-                <div class="flight-mini">
-                  <div class="row">
-                    <span class="code-cell">VN249</span>
-                    <span class="time-cell">15:30 → 17:45</span>
-                    <span class="badge">scheduled</span>
-                  </div>
-                  <div class="row">
-                    <span class="code-cell">QH251</span>
-                    <span class="time-cell">16:15 → 18:30</span>
-                    <span class="badge">scheduled</span>
-                  </div>
-                  <div class="row">
-                    <span class="code-cell">VJ151</span>
-                    <span class="time-cell">16:50 → 19:00</span>
-                    <span class="badge">scheduled</span>
-                  </div>
-                  <div class="row more">+22 chuyến khác · sort theo giờ khởi hành</div>
-                </div>
-              </div>
-            </div>
-            <div class="body">
-              <span class="tag featured">X2 — Flow chính · Route search</span>
-              <h4>Tìm danh sách chuyến bay từ A → B để so sánh.</h4>
-              <p>→ LLM gọi <code>search_flights({dep_iata, arr_iata})</code>, server normalize + dedupe + sort. UI render full list cards đa hãng. <strong>Use case build chính của Day 06.</strong></p>
-            </div>
+      <!-- Backlog -->
+      <div class="container reveal" style="margin-top: 0;">
+        <div class="flow-backlog-heading">
+          <h3>Ba flow còn lại — backlog cho phase sau</h3>
+          <small>Đã có pain · chưa build sâu Day 06</small>
+        </div>
+        <div class="flow-backlog">
+          <article class="card-min">
+            <span class="meta-tag">X1 · Backlog</span>
+            <h4>Tra trạng thái 1 mã chuyến cụ thể</h4>
+            <div class="example">"Chuyến VN217 hôm nay sao rồi?"</div>
+            <p>Cùng tool <code>search_flights</code> nhưng filter theo <code>flight_iata</code>, render 1 card chi tiết. Pipeline đã sẵn, chỉ cần polish UX.</p>
+          </article>
+          <article class="card-min">
+            <span class="meta-tag">G1 · Backlog</span>
+            <h4>Multi-intent triage</h4>
+            <div class="example">"Đổi ngày + check-in + giấy tờ trẻ em…"</div>
+            <p>Bot hiện trả 1 đoạn dài cho 3 vấn đề. Schema <code>detectedIssues[]</code> đã có, nhưng flow UX để user chọn xử lý mục nào trước cần thiết kế kỹ hơn.</p>
+          </article>
+          <article class="card-min">
+            <span class="meta-tag">G2 · Backlog</span>
+            <h4>Risk guardrails + handoff thật</h4>
+            <div class="example">"App lỗi, tiền đã trừ, chưa nhận vé."</div>
+            <p>Deterministic risk + handoffSummary đã đúng. Còn thiếu: kết nối tổng đài thật để chuyển summary tự động, đo % case nhân viên thực sự cần can thiệp.</p>
           </article>
         </div>
       </div>
