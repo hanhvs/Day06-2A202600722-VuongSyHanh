@@ -386,6 +386,14 @@ h3 {
   background: #ffffff;
 }
 
+.travel-image {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 6px;
+  background: #e9f1f7;
+}
+
 .travel-card-top {
   display: flex;
   align-items: flex-start;

@@ -38,6 +38,13 @@ const RiskEnum = z.enum(["Low", "Medium", "High"]);
 const KnownInfoSchema = z.object({
   bookingCode: z.string().nullable().default(null),
   route: z.string().nullable().default(null),
+  flightCode: z.string().nullable().default(null),
+  flightOriginIata: z.string().nullable().default(null),
+  flightOriginLabel: z.string().nullable().default(null),
+  flightDestinationIata: z.string().nullable().default(null),
+  flightDestinationLabel: z.string().nullable().default(null),
+  flightDate: z.string().nullable().default(null),
+  flightTimeWindow: z.string().nullable().default(null),
   purchaseChannel: z.string().nullable().default(null),
   paymentDeducted: z.boolean().default(false),
   paymentTime: z.string().nullable().default(null),
@@ -61,7 +68,8 @@ const TravelSuggestionSchema = z.object({
   category: z.string().default("điểm đến"),
   reason: z.string(),
   bestFor: z.string().default("tham quan nhẹ nhàng"),
-  caution: z.string().default("Kiểm tra giờ mở cửa, phí và điều kiện thực tế trước khi đi.")
+  caution: z.string().default("Kiểm tra giờ mở cửa, phí và điều kiện thực tế trước khi đi."),
+  imageUrl: z.string().nullable().default(null)
 });
 
 const FlightResultSchema = z.object({
@@ -129,6 +137,157 @@ function uniqueByIntent(issues) {
     if (seen.has(issue.intent)) return false;
     seen.add(issue.intent);
     return true;
+  });
+}
+
+const AIRPORT_ALIASES = [
+  { iata: "HAN", label: "Hà Nội (HAN)", aliases: ["han", "ha noi", "hanoi", "noi bai"] },
+  { iata: "SGN", label: "TP.HCM/Sài Gòn (SGN)", aliases: ["sgn", "sai gon", "saigon", "tp hcm", "tphcm", "ho chi minh", "tan son nhat"] },
+  { iata: "DAD", label: "Đà Nẵng (DAD)", aliases: ["dad", "da nang", "danang"] },
+  { iata: "HPH", label: "Hải Phòng (HPH)", aliases: ["hph", "hai phong", "cat bi"] },
+  { iata: "CXR", label: "Nha Trang/Cam Ranh (CXR)", aliases: ["cxr", "nha trang", "cam ranh"] },
+  { iata: "HUI", label: "Huế (HUI)", aliases: ["hui", "hue", "phu bai"] },
+  { iata: "PQC", label: "Phú Quốc (PQC)", aliases: ["pqc", "phu quoc"] },
+  { iata: "VCA", label: "Cần Thơ (VCA)", aliases: ["vca", "can tho"] },
+  { iata: "DLI", label: "Đà Lạt (DLI)", aliases: ["dli", "da lat", "dalat", "lien khuong"] },
+  { iata: "VCS", label: "Côn Đảo (VCS)", aliases: ["vcs", "con dao"] },
+  { iata: "VII", label: "Vinh (VII)", aliases: ["vii", "vinh"] },
+  { iata: "THD", label: "Thanh Hóa (THD)", aliases: ["thd", "thanh hoa", "tho xuan"] }
+];
+
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function findAirportMentions(normalizedText) {
+  const mentions = [];
+  for (const airport of AIRPORT_ALIASES) {
+    for (const alias of airport.aliases) {
+      const pattern = new RegExp(`(^|[^a-z0-9])${escapeRegex(alias)}([^a-z0-9]|$)`, "g");
+      let match;
+      while ((match = pattern.exec(normalizedText))) {
+        mentions.push({
+          iata: airport.iata,
+          label: airport.label,
+          index: match.index + (match[1] ? match[1].length : 0)
+        });
+      }
+    }
+  }
+  const seen = new Set();
+  return mentions
+    .sort((a, b) => a.index - b.index)
+    .filter((mention) => {
+      const key = `${mention.iata}:${mention.index}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function addDaysISO(baseIso, days) {
+  const [year, month, day] = baseIso.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + days));
+  return date.toISOString().slice(0, 10);
+}
+
+function nextWeekdayISO(targetDay) {
+  const todayIso = nowInVietnamISO();
+  const [year, month, day] = todayIso.split("-").map(Number);
+  const today = new Date(Date.UTC(year, month - 1, day));
+  const diff = (targetDay - today.getUTCDay() + 7) % 7 || 7;
+  return addDaysISO(todayIso, diff);
+}
+
+function extractFlightDate(normalizedText) {
+  if (/\b(hom nay|today)\b/.test(normalizedText)) return nowInVietnamISO();
+  if (/\b(ngay mai|mai|tomorrow)\b/.test(normalizedText)) return addDaysISO(nowInVietnamISO(), 1);
+  if (/\b(chu nhat|cn|sunday)\b/.test(normalizedText)) return nextWeekdayISO(0);
+  if (/\b(thu 2|thu hai|monday)\b/.test(normalizedText)) return nextWeekdayISO(1);
+  if (/\b(thu 3|thu ba|tuesday)\b/.test(normalizedText)) return nextWeekdayISO(2);
+  if (/\b(thu 4|thu tu|wednesday)\b/.test(normalizedText)) return nextWeekdayISO(3);
+  if (/\b(thu 5|thu nam|thursday)\b/.test(normalizedText)) return nextWeekdayISO(4);
+  if (/\b(thu 6|thu sau|friday)\b/.test(normalizedText)) return nextWeekdayISO(5);
+  if (/\b(thu 7|thu bay|saturday)\b/.test(normalizedText)) return nextWeekdayISO(6);
+  const explicit = normalizedText.match(/\b(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?\b/);
+  if (explicit) {
+    const day = explicit[1].padStart(2, "0");
+    const month = explicit[2].padStart(2, "0");
+    const currentYear = nowInVietnamISO().slice(0, 4);
+    const year = explicit[3] ? explicit[3].padStart(4, "20") : currentYear;
+    return `${year}-${month}-${day}`;
+  }
+  return null;
+}
+
+function extractFlightTimeWindow(normalizedText) {
+  const timeMatch = normalizedText.match(/\b(\d{1,2})(?::|h)(\d{2})?\b/);
+  if (timeMatch) return `${timeMatch[1].padStart(2, "0")}:${timeMatch[2] || "00"}`;
+  if (/\b(sang|morning)\b/.test(normalizedText)) return "sáng";
+  if (/\b(trua|noon)\b/.test(normalizedText)) return "trưa";
+  if (/\b(chieu|afternoon)\b/.test(normalizedText)) return "chiều";
+  if (/\b(dem|evening|night)\b/.test(normalizedText)) return "tối";
+  if (/\b(buoi toi|toi nay|toi mai|toi chu nhat|toi thu|toi luc)\b/.test(normalizedText)) return "tối";
+  if (normalizedText.trim() === "toi") return "tối";
+  return null;
+}
+
+function extractFlightContext(message, state = {}) {
+  const normalizedText = normalizeText(message);
+  const prior = state.knownInfo || {};
+  const context = {
+    flightCode: prior.flightCode || null,
+    flightOriginIata: prior.flightOriginIata || null,
+    flightOriginLabel: prior.flightOriginLabel || null,
+    flightDestinationIata: prior.flightDestinationIata || null,
+    flightDestinationLabel: prior.flightDestinationLabel || null,
+    flightDate: prior.flightDate || null,
+    flightTimeWindow: prior.flightTimeWindow || null
+  };
+
+  const flightCode = extractFlightCode(message);
+  if (flightCode) context.flightCode = flightCode;
+
+  const mentions = findAirportMentions(normalizedText);
+  if (mentions.length >= 2) {
+    context.flightOriginIata = mentions[0].iata;
+    context.flightOriginLabel = mentions[0].label;
+    context.flightDestinationIata = mentions[1].iata;
+    context.flightDestinationLabel = mentions[1].label;
+  } else if (mentions.length === 1) {
+    const mention = mentions[0];
+    const before = normalizedText.slice(Math.max(0, mention.index - 12), mention.index);
+    if (/\b(tu|from)\s*$/.test(before)) {
+      context.flightOriginIata = mention.iata;
+      context.flightOriginLabel = mention.label;
+    } else if (/\b(den|toi|to|di)\s*$/.test(before)) {
+      context.flightDestinationIata = mention.iata;
+      context.flightDestinationLabel = mention.label;
+    } else if (!context.flightOriginIata) {
+      context.flightOriginIata = mention.iata;
+      context.flightOriginLabel = mention.label;
+    } else if (!context.flightDestinationIata && mention.iata !== context.flightOriginIata) {
+      context.flightDestinationIata = mention.iata;
+      context.flightDestinationLabel = mention.label;
+    }
+  }
+
+  const flightDate = extractFlightDate(normalizedText);
+  if (flightDate) context.flightDate = flightDate;
+
+  const flightTimeWindow = extractFlightTimeWindow(normalizedText);
+  if (flightTimeWindow) context.flightTimeWindow = flightTimeWindow;
+
+  return context;
+}
+
+function withTravelImages(suggestions = []) {
+  return suggestions.map((item) => {
+    const query = encodeURIComponent(`${item.name || ""} ${item.city || ""} Vietnam travel`.trim());
+    return {
+      ...item,
+      imageUrl: item.imageUrl || `https://source.unsplash.com/640x420/?${query}`
+    };
   });
 }
 
@@ -339,7 +498,7 @@ function buildTravelSuggestions(message) {
 
   return {
     city,
-    suggestions: city && suggestionMap[city] ? suggestionMap[city] : genericSuggestions
+    suggestions: withTravelImages(city && suggestionMap[city] ? suggestionMap[city] : genericSuggestions)
   };
 }
 
@@ -347,6 +506,11 @@ function mergeKnownInfo(message, state = {}) {
   const text = normalizeText(message);
   const prior = state.knownInfo || {};
   const knownInfo = KnownInfoSchema.parse({ ...prior });
+  const flightContext = extractFlightContext(message, state);
+  Object.assign(knownInfo, flightContext);
+  if (knownInfo.flightOriginIata && knownInfo.flightDestinationIata) {
+    knownInfo.route = `${knownInfo.flightOriginIata} - ${knownInfo.flightDestinationIata}`;
+  }
 
   if (/(tien da tru|tien bi tru|bi tru tien|tai khoan.*tru|da thanh toan|thanh toan roi|payment deducted)/.test(text)) {
     knownInfo.paymentDeducted = true;
@@ -417,11 +581,13 @@ function detectIssues(message) {
   const hasFlightSearchIntent = /(tim chuyen bay|tim ve\b|chuyen bay tu|chuyen tu .* (den|di)\b|flight from .* to\b)/.test(text);
   const iataCodes = text.match(/\b(han|sgn|dad|hph|cxr|hui|pqc|vca|dli|vcs|vii|thd)\b/g) || [];
   const hasIataPair = new Set(iataCodes).size >= 2;
+  const airportMentions = findAirportMentions(text);
   const cityWord = "(ha noi|sai gon|tp\\.?ho chi minh|tp\\.?hcm|tphcm|ho chi minh|da nang|hai phong|nha trang|hue|phu quoc|can tho|da lat|con dao|vinh|thanh hoa)";
   const hasCityPair = new RegExp(`${cityWord}.{0,25}\\b(di|den|to|-|–|>)\\b.{0,25}${cityWord}`).test(text);
   const mentionsFlightWord = /(chuyen bay|chuyen|flight|bay)/.test(text);
+  const hasFlightTimeOnly = /(hom nay|ngay mai|mai|chu nhat|thu 2|thu hai|thu 3|thu ba|thu 4|thu tu|thu 5|thu nam|thu 6|thu sau|thu 7|thu bay|sang|trua|chieu|toi|dem|\b\d{1,2}(h|:\d{2})\b)/.test(text);
 
-  if ((flightCode || hasFlightStatusKeyword || hasFlightSearchIntent || hasIataPair || (hasCityPair && mentionsFlightWord)) && !hasPaymentOrError) {
+  if ((flightCode || hasFlightStatusKeyword || hasFlightSearchIntent || hasIataPair || airportMentions.length >= 2 || (hasCityPair && mentionsFlightWord) || (mentionsFlightWord && hasFlightTimeOnly)) && !hasPaymentOrError) {
     issues.push({
       intent: "flight_status_query",
       label: flightCode
@@ -552,6 +718,9 @@ function chooseSelectedIntent(message, issues, state = {}) {
   if (issues.some((issue) => issue.intent === "travel_place_recommendation") && /(di choi|choi gi|tham quan|du lich|goi y|dia diem|an uong|lich trinh|places|attractions|where to go|layla)/.test(text)) {
     return issues.length === 1 ? "travel_place_recommendation" : null;
   }
+  if (issues.some((issue) => issue.intent === "flight_status_query")) {
+    return "flight_status_query";
+  }
   if (/(xu ly ve|chon ve|issue ve|van de ve)/.test(text)) return "ticket_payment_issue";
   if (/(xu ly hanh ly|chon hanh ly|issue hanh ly|van de hanh ly)/.test(text)) return "baggage_addon_payment_issue";
   if (prior && !/(khong phai|doi sang|dang noi ve)/.test(text)) return prior;
@@ -591,10 +760,12 @@ function missingInfoFor(intent, knownInfo, riskLevel) {
   }
 
   if (intent === "flight_status_query") {
-    return [
-      "Mã hiệu chuyến bay (ví dụ VN123, QH245)",
-      "Ngày bay nếu khác hôm nay"
-    ];
+    const missing = [];
+    if (!knownInfo.flightOriginIata) missing.push("Nơi đi của chuyến bay");
+    if (!knownInfo.flightDestinationIata) missing.push("Nơi đến của chuyến bay");
+    if (!knownInfo.flightDate && !knownInfo.flightTimeWindow) missing.push("Thời gian hoặc ngày bay");
+    if (!knownInfo.flightCode) missing.push("Mã hiệu chuyến bay nếu bạn đã có");
+    return missing;
   }
 
   if (intent === "ticket_payment_issue") {
@@ -756,6 +927,143 @@ function customerAnswerFor(intent, knownInfo, riskLevel) {
   return "Mình đã nhận diện vấn đề bạn đang hỏi và sẽ gợi ý bước xử lý tiếp theo.";
 }
 
+const AIRPORT_NAMES = Object.fromEntries(AIRPORT_ALIASES.map((airport) => [airport.iata, airport.label]));
+
+const MOCK_FLIGHT_ROUTES = {
+  "HAN-DAD": [
+    ["VN161", "Vietnam Airlines", "07:05", "08:25"],
+    ["VJ501", "VietJet Air", "12:10", "13:30"],
+    ["QH103", "Bamboo Airways", "18:40", "20:00"],
+    ["VN181", "Vietnam Airlines", "21:15", "22:35"]
+  ],
+  "DAD-HAN": [
+    ["VN162", "Vietnam Airlines", "08:55", "10:15"],
+    ["VJ502", "VietJet Air", "14:20", "15:40"],
+    ["QH104", "Bamboo Airways", "19:35", "21:00"]
+  ],
+  "HAN-SGN": [
+    ["VN217", "Vietnam Airlines", "06:00", "08:10"],
+    ["VJ121", "VietJet Air", "11:45", "13:55"],
+    ["QH241", "Bamboo Airways", "17:25", "19:35"],
+    ["VN267", "Vietnam Airlines", "21:00", "23:10"]
+  ],
+  "SGN-HAN": [
+    ["VN216", "Vietnam Airlines", "06:30", "08:40"],
+    ["VJ122", "VietJet Air", "13:00", "15:10"],
+    ["QH242", "Bamboo Airways", "18:10", "20:20"],
+    ["VN268", "Vietnam Airlines", "21:35", "23:45"]
+  ],
+  "SGN-DAD": [
+    ["VN126", "Vietnam Airlines", "08:20", "09:45"],
+    ["VJ622", "VietJet Air", "15:30", "16:55"],
+    ["QH132", "Bamboo Airways", "20:10", "21:35"]
+  ],
+  "DAD-SGN": [
+    ["VN127", "Vietnam Airlines", "09:20", "10:45"],
+    ["VJ623", "VietJet Air", "16:20", "17:45"],
+    ["QH133", "Bamboo Airways", "21:05", "22:30"]
+  ],
+  "HAN-PQC": [
+    ["VN1237", "Vietnam Airlines", "09:45", "11:55"],
+    ["VJ459", "VietJet Air", "14:05", "16:15"],
+    ["QH1621", "Bamboo Airways", "19:20", "21:30"]
+  ],
+  "SGN-PQC": [
+    ["VN1821", "Vietnam Airlines", "07:30", "08:35"],
+    ["VJ331", "VietJet Air", "12:35", "13:40"],
+    ["QH1525", "Bamboo Airways", "18:15", "19:20"]
+  ]
+};
+
+function routeKeyForFlightContext(knownInfo = {}) {
+  if (knownInfo.flightOriginIata && knownInfo.flightDestinationIata) {
+    return `${knownInfo.flightOriginIata}-${knownInfo.flightDestinationIata}`;
+  }
+  return null;
+}
+
+function timeWindowHourRange(timeWindow) {
+  if (!timeWindow) return null;
+  if (/^\d{2}:\d{2}$/.test(timeWindow)) {
+    const hour = Number(timeWindow.slice(0, 2));
+    return [Math.max(0, hour - 2), Math.min(23, hour + 3)];
+  }
+  if (timeWindow === "sáng") return [5, 11];
+  if (timeWindow === "trưa") return [11, 14];
+  if (timeWindow === "chiều") return [12, 18];
+  if (timeWindow === "tối") return [18, 23];
+  return null;
+}
+
+function flightRowsToResults(routeKey, rows, knownInfo = {}) {
+  const [dep, arr] = routeKey.split("-");
+  const range = timeWindowHourRange(knownInfo.flightTimeWindow);
+  const filtered = rows.filter((row) => {
+    if (!range) return true;
+    const hour = Number(row[2].slice(0, 2));
+    return hour >= range[0] && hour <= range[1];
+  });
+  const selectedRows = filtered.length ? filtered : rows;
+  return selectedRows.slice(0, 4).map(([flightNumber, airline, departureScheduled, arrivalScheduled]) => ({
+    flightNumber,
+    airline,
+    status: "scheduled",
+    departureIata: dep,
+    departureAirport: AIRPORT_NAMES[dep] || dep,
+    departureScheduled,
+    departureEstimated: null,
+    arrivalIata: arr,
+    arrivalAirport: AIRPORT_NAMES[arr] || arr,
+    arrivalScheduled,
+    arrivalEstimated: null,
+    delayMinutes: null
+  }));
+}
+
+function buildFlightSuggestions(knownInfo = {}, message = "") {
+  const directRouteKey = routeKeyForFlightContext(knownInfo);
+  const routeKeys = Object.keys(MOCK_FLIGHT_ROUTES);
+  let routeKey = directRouteKey && MOCK_FLIGHT_ROUTES[directRouteKey] ? directRouteKey : null;
+  let basis = "context trước đó";
+
+  if (!routeKey && knownInfo.flightOriginIata) {
+    routeKey = routeKeys.find((key) => key.startsWith(`${knownInfo.flightOriginIata}-`)) || null;
+  }
+  if (!routeKey && knownInfo.flightDestinationIata) {
+    routeKey = routeKeys.find((key) => key.endsWith(`-${knownInfo.flightDestinationIata}`)) || null;
+  }
+  if (!routeKey) {
+    const seed = normalizeText(message).length % routeKeys.length;
+    routeKey = routeKeys[seed] || "HAN-DAD";
+    basis = "route phổ biến";
+  }
+
+  return {
+    basis,
+    routeKey,
+    flights: flightRowsToResults(routeKey, MOCK_FLIGHT_ROUTES[routeKey], knownInfo)
+  };
+}
+
+function flightContextMissingLabels(knownInfo = {}) {
+  const labels = [];
+  if (!knownInfo.flightOriginIata) labels.push("nơi đi");
+  if (!knownInfo.flightDestinationIata) labels.push("nơi đến");
+  if (!knownInfo.flightDate && !knownInfo.flightTimeWindow) labels.push("thời gian/ngày bay");
+  return labels;
+}
+
+function customerAnswerForFlightSuggestions(knownInfo = {}, suggestionData) {
+  const route = suggestionData?.routeKey?.replace("-", " → ") || "một số tuyến phổ biến";
+  const missing = flightContextMissingLabels(knownInfo);
+  const datePart = knownInfo.flightDate ? ` ngày ${knownInfo.flightDate}` : "";
+  const timePart = knownInfo.flightTimeWindow ? ` khung ${knownInfo.flightTimeWindow}` : "";
+  if (missing.length) {
+    return `Mình còn thiếu ${missing.join(", ")} nên đang gợi ý vài chuyến ${route}${datePart}${timePart} dựa trên ${suggestionData.basis}; bạn gửi đủ nơi đi, nơi đến và thời gian để mình lọc sát hơn nhé.`;
+  }
+  return `Mình ghi nhận chuyến ${route}${datePart}${timePart}; dưới đây là vài chuyến tham khảo, sắp xếp theo giờ khởi hành.`;
+}
+
 function makeHandoffSummary(intent, knownInfo, missingInfo, riskLevel) {
   if (riskLevel !== "High") return "";
   const problem =
@@ -777,7 +1085,25 @@ function makeHandoffSummary(intent, knownInfo, missingInfo, riskLevel) {
 
 function applyRiskGuardrails(result, message, state = {}) {
   const text = normalizeText(message);
-  const knownInfo = KnownInfoSchema.parse(result.knownInfo || {});
+  const extractedKnownInfo = mergeKnownInfo(message, state);
+  const knownInfo = KnownInfoSchema.parse(mergeKnownInfoValues(extractedKnownInfo, result.knownInfo || {}));
+  [
+    "flightCode",
+    "flightOriginIata",
+    "flightOriginLabel",
+    "flightDestinationIata",
+    "flightDestinationLabel",
+    "flightDate",
+    "flightTimeWindow"
+  ].forEach((key) => {
+    knownInfo[key] = extractedKnownInfo[key] || null;
+  });
+  if (knownInfo.flightOriginIata && knownInfo.flightDestinationIata) {
+    knownInfo.route = `${knownInfo.flightOriginIata}-${knownInfo.flightDestinationIata}`;
+  }
+  if (result.selectedIntent === "flight_status_query") {
+    knownInfo.errorMessage = null;
+  }
   const riskSignals = new Set(result.riskSignals || []);
   const deterministicIssues = detectIssues(message);
   const deterministicIntents = new Set(deterministicIssues.map((issue) => issue.intent));
@@ -854,6 +1180,10 @@ function applyRiskGuardrails(result, message, state = {}) {
           const tb = b?.departureScheduled || "";
           return ta.localeCompare(tb);
         });
+    } else {
+      const suggestionData = buildFlightSuggestions(knownInfo, message);
+      result.flightResults = suggestionData.flights;
+      result.customerAnswer = customerAnswerForFlightSuggestions(knownInfo, suggestionData);
     }
     result.customerAnswer = result.customerAnswer || customerAnswerFor(result.selectedIntent, knownInfo, result.riskLevel);
     if (
@@ -953,6 +1283,13 @@ Always return JSON matching this shape (intents enum below is exhaustive):
   "knownInfo": {
     "bookingCode": "string|null",
     "route": "string|null",
+    "flightCode": "string|null",
+    "flightOriginIata": "string|null",
+    "flightOriginLabel": "string|null",
+    "flightDestinationIata": "string|null",
+    "flightDestinationLabel": "string|null",
+    "flightDate": "YYYY-MM-DD|string|null",
+    "flightTimeWindow": "string|null",
     "purchaseChannel": "string|null",
     "paymentDeducted": boolean,
     "paymentTime": "string|null",
@@ -966,7 +1303,7 @@ Always return JSON matching this shape (intents enum below is exhaustive):
   "riskSignals": ["string"],
   "nextQuestions": ["string"],
   "actionChecklist": ["string"],
-  "travelSuggestions": [{"name": "string", "city": "string|null", "category": "string", "reason": "string", "bestFor": "string", "caution": "string"}],
+  "travelSuggestions": [{"name": "string", "city": "string|null", "category": "string", "reason": "string", "bestFor": "string", "caution": "string", "imageUrl": "string|null"}],
   "flightResults": [{"flightNumber": "VN217", "airline": "Vietnam Airlines", "status": "scheduled|active|landed|cancelled|incident|diverted", "departureIata": "HAN", "departureAirport": "Noibai International", "departureScheduled": "17:00", "departureEstimated": "17:10", "arrivalIata": "SGN", "arrivalAirport": "Tan Son Nhat International", "arrivalScheduled": "19:10", "arrivalEstimated": null, "delayMinutes": 10}],
   "customerAnswer": "friendly answer to the passenger in Vietnamese",
   "handoffSummary": "string",
@@ -980,6 +1317,11 @@ Tools available:
   • a route between two airports/cities (e.g. "tìm chuyến HAN to SGN", "chuyến từ Hà Nội đi Đà Nẵng", "HAN-SGN tối nay"). → pass dep_iata + arr_iata. If user didn't mention a date, LEAVE flight_date blank (realtime endpoint returns today by default). Do NOT ask the user for a date first.
   • an airline + day (e.g. "Vietnam Airlines hôm nay có chuyến nào trễ"). → pass airline_iata. Vietnam Airlines airline_iata = "VN".
   Use intent flight_status_query for all of these.
+
+  Flight context rule:
+  - Always preserve flightCode, flightOriginIata/Label, flightDestinationIata/Label, flightDate, and flightTimeWindow from conversationState + latest message.
+  - A route flight search is considered complete only when origin, destination, and date/time window are known. If any of these are missing, do not drop the context; ask for the missing fields and still return a few related flightResults if you have enough context, or broad popular-route suggestions if you do not.
+  - For short follow-ups like "tối chủ nhật", update flightDate/flightTimeWindow while keeping the previous origin/destination.
 
   Vietnam airport IATA cheatsheet (use these directly without re-asking the user):
     HAN = Hà Nội (Nội Bài), SGN = TP.HCM / Sài Gòn (Tân Sơn Nhất), DAD = Đà Nẵng,
@@ -1035,6 +1377,7 @@ Rules:
 - The chatbot can answer general Vietnam Airlines questions, but the improved slice is stronger handling for vague, multi-intent, high-risk, and flight-status cases.
 - For general airline questions, answer briefly in Vietnamese and ask for missing details if route/fare/time affects the answer.
 - If the user asks for travel inspiration, places to visit, food areas, or a light itinerary at a destination, use intent travel_place_recommendation and return 3-5 travelSuggestions in Vietnamese.
+- When returning travelSuggestions, include imageUrl when possible. Use a tasteful public image URL or leave null; never invent a local file path.
 - TravelSuggestions should be practical, friendly, and lightweight, but do not claim live opening hours, prices, availability, distance, or map coordinates.
 - Do not book hotels, restaurants, tours, attractions, flights, change ticket, refund, confirm ticket validity, or update baggage.
 - If the user says money was deducted, payment completed, ticket/email missing, or service not confirmed, riskLevel must be High and shouldHandoff true.

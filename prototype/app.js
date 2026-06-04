@@ -1,6 +1,13 @@
 const defaultKnownInfo = {
   bookingCode: null,
   route: null,
+  flightCode: null,
+  flightOriginIata: null,
+  flightOriginLabel: null,
+  flightDestinationIata: null,
+  flightDestinationLabel: null,
+  flightDate: null,
+  flightTimeWindow: null,
   purchaseChannel: null,
   paymentDeducted: false,
   paymentTime: null,
@@ -46,12 +53,20 @@ const intentLabels = {
   date_change_request: "Đổi ngày vé",
   refund_request: "Hoàn tiền",
   other_addon_issue: "Dịch vụ cộng thêm khác",
-  travel_place_recommendation: "Gợi ý nơi đi chơi"
+  travel_place_recommendation: "Gợi ý nơi đi chơi",
+  flight_status_query: "Tra chuyến bay"
 };
 
 const knownInfoLabels = {
   bookingCode: "Mã đặt chỗ",
   route: "Hành trình / điểm đến",
+  flightCode: "Mã chuyến bay",
+  flightOriginIata: "Sân bay đi",
+  flightOriginLabel: "Nơi đi",
+  flightDestinationIata: "Sân bay đến",
+  flightDestinationLabel: "Nơi đến",
+  flightDate: "Ngày bay",
+  flightTimeWindow: "Thời gian bay",
   purchaseChannel: "Kênh mua",
   paymentDeducted: "Tiền đã trừ",
   paymentTime: "Thời điểm thanh toán",
@@ -65,6 +80,13 @@ const knownInfoLabels = {
 const customerFieldLabels = {
   bookingCode: "Mã đặt chỗ",
   route: "Hành trình / điểm đến",
+  flightCode: "Mã chuyến bay",
+  flightOriginIata: "Sân bay đi",
+  flightOriginLabel: "Nơi đi",
+  flightDestinationIata: "Sân bay đến",
+  flightDestinationLabel: "Nơi đến",
+  flightDate: "Ngày bay",
+  flightTimeWindow: "Thời gian bay",
   purchaseChannel: "Kênh mua: app, website hay đại lý",
   paymentDeducted: "Trạng thái tiền đã bị trừ",
   paymentTime: "Thời điểm thanh toán",
@@ -309,8 +331,12 @@ function renderTravelSuggestionCards(suggestions = []) {
         .slice(0, 5)
         .map((item) => {
           const mapQuery = encodeURIComponent(`${item.name || ""} ${item.city || ""}`.trim());
+          const image = item.imageUrl
+            ? `<img class="travel-image" src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.name)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true">`
+            : "";
           return `
           <article class="travel-card">
+            ${image}
             <div class="travel-card-top">
               <strong>${escapeHtml(item.name)}</strong>
               <span>${escapeHtml(item.category || "điểm đến")}</span>
@@ -359,7 +385,7 @@ function buildAssistantReply(response) {
     ? renderFlightCards(response.flightResults)
     : "";
 
-  const missing = response.missingInfo?.length && !hasFlightResults
+  const missing = response.missingInfo?.length
     ? `<p>Để kiểm tra nhanh hơn, bạn nên chuẩn bị:</p>${renderMiniList(response.missingInfo, 5)}`
     : "";
 
@@ -423,6 +449,10 @@ function renderState() {
     "Vấn đề đang xử lý": conversationState.selectedIntent
       ? intentLabels[conversationState.selectedIntent] || conversationState.selectedIntent
       : null,
+    "Mã chuyến": conversationState.knownInfo.flightCode,
+    "Nơi đi": conversationState.knownInfo.flightOriginLabel || conversationState.knownInfo.flightOriginIata,
+    "Nơi đến": conversationState.knownInfo.flightDestinationLabel || conversationState.knownInfo.flightDestinationIata,
+    "Ngày/giờ bay": [conversationState.knownInfo.flightDate, conversationState.knownInfo.flightTimeWindow].filter(Boolean).join(" "),
     "Tiền đã trừ": conversationState.knownInfo.paymentDeducted,
     "Mã đặt chỗ": conversationState.knownInfo.bookingCode,
     "Kênh mua": conversationState.knownInfo.purchaseChannel,
