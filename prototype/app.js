@@ -29,6 +29,7 @@ const MAX_HISTORY = 20;
 
 let conversationState = structuredClone(defaultState);
 let lastResponse = null;
+let travelMapSerial = 0;
 
 const testMessages = {
   happy: "Hành lý xách tay của Vietnam Airlines được mang bao nhiêu kg?",
@@ -178,6 +179,79 @@ function appendAssistantMessage(html) {
   `;
   chatMessages.append(article);
   scrollChatToBottom();
+  return article;
+}
+
+function appendTypingIndicator() {
+  const article = document.createElement("article");
+  article.className = "message assistant typing";
+  article.innerHTML = `
+    <div class="avatar">NEO</div>
+    <div class="bubble typing-bubble" aria-live="polite">
+      <span class="typing-dots"><span></span><span></span><span></span></span>
+      <span class="typing-label">Đang chuẩn bị…</span>
+    </div>
+  `;
+  chatMessages.append(article);
+  scrollChatToBottom();
+  return article;
+}
+
+function setTypingLabel(typingEl, label) {
+  const labelEl = typingEl?.querySelector(".typing-label");
+  if (labelEl) labelEl.textContent = label;
+  scrollChatToBottom();
+}
+
+async function streamTriage(message, typingEl) {
+  const response = await fetch("/api/triage/stream", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream"
+    },
+    body: JSON.stringify({ message, conversationState })
+  });
+  if (!response.ok || !response.body) {
+    throw new Error(`Server lỗi (${response.status})`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finalResult = null;
+  let streamError = null;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let separator;
+    while ((separator = buffer.indexOf("\n\n")) !== -1) {
+      const block = buffer.slice(0, separator);
+      buffer = buffer.slice(separator + 2);
+      const dataLine = block.split("\n").find((line) => line.startsWith("data:"));
+      if (!dataLine) continue;
+      let event;
+      try {
+        event = JSON.parse(dataLine.slice(5).trim());
+      } catch {
+        continue;
+      }
+      if (event.type === "stage") {
+        setTypingLabel(typingEl, event.label);
+      } else if (event.type === "done") {
+        finalResult = event.result;
+      } else if (event.type === "error") {
+        streamError = new Error(event.message || "Server lỗi");
+      }
+    }
+  }
+
+  if (streamError) throw streamError;
+  if (!finalResult) throw new Error("Stream kết thúc nhưng chưa có kết quả.");
+  return finalResult;
 }
 
 function appendTypingIndicator() {
@@ -323,6 +397,22 @@ function renderFlightCards(flights = []) {
   `;
 }
 
+function buildGoogleMapsUrl(item) {
+  const hasCoords = Number.isFinite(item.latitude) && Number.isFinite(item.longitude);
+  if (hasCoords) {
+    return `https://www.google.com/maps/search/?api=1&query=${item.latitude},${item.longitude}`;
+  }
+  const mapQuery = encodeURIComponent(`${item.name || ""} ${item.city || ""}`.trim());
+  return `https://www.google.com/maps/search/?api=1&query=${mapQuery}`;
+}
+
+function buildGoogleMapsDirectionsUrl(item) {
+  const hasCoords = Number.isFinite(item.latitude) && Number.isFinite(item.longitude);
+  const destination = hasCoords
+    ? `${item.latitude},${item.longitude}`
+    : encodeURIComponent(`${item.name || ""} ${item.city || ""}`.trim());
+  return `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
+}
 function renderTravelSuggestionCards(suggestions = []) {
   if (!suggestions.length) return "";
   return `
@@ -330,7 +420,8 @@ function renderTravelSuggestionCards(suggestions = []) {
       ${suggestions
         .slice(0, 5)
         .map((item) => {
-          const mapQuery = encodeURIComponent(`${item.name || ""} ${item.city || ""}`.trim());
+          const mapUrl = buildGoogleMapsUrl(item);
+          const dirUrl = buildGoogleMapsDirectionsUrl(item);
           const image = item.imageUrl
             ? `<img class="travel-image" src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.name)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true">`
             : "";
@@ -344,13 +435,173 @@ function renderTravelSuggestionCards(suggestions = []) {
             <p>${escapeHtml(item.reason)}</p>
             <small>${escapeHtml(item.bestFor || "tham quan nhẹ nhàng")}</small>
             ${item.caution ? `<em>${escapeHtml(item.caution)}</em>` : ""}
-            <a class="map-link" href="https://www.google.com/maps/search/?api=1&query=${mapQuery}" target="_blank" rel="noreferrer">Xem trên bản đồ</a>
+            <div class="travel-card-actions">
+              <a class="map-link" href="${mapUrl}" target="_blank" rel="noreferrer">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                Xem vị trí
+              </a>
+              <a class="map-link directions-link" href="${dirUrl}" target="_blank" rel="noreferrer">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+                Chỉ đường
+              </a>
+            </div>
           </article>
         `;
         })
         .join("")}
     </div>
   `;
+}
+
+function renderTravelExplorer(suggestions = []) {
+  if (!suggestions.length) return "";
+  const city = suggestions[0]?.city || "điểm đến";
+  const mapId = `travel-map-${++travelMapSerial}`;
+  return `
+    <section class="travel-explorer" data-map-id="${mapId}" aria-label="Bản đồ gợi ý nơi đi chơi">
+      <div class="travel-explorer-head">
+        <div>
+          <p class="travel-kicker">Travel radar</p>
+          <h4>${escapeHtml(city)}</h4>
+        </div>
+        <span class="travel-count">${suggestions.length} điểm gợi ý</span>
+      </div>
+      <div id="${mapId}" class="travel-map" role="img" aria-label="Bản đồ các điểm gợi ý trong ${escapeHtml(city)}"></div>
+      <div class="travel-stops">
+        ${suggestions
+          .map(
+            (item, index) => {
+              const dirUrl = buildGoogleMapsDirectionsUrl(item);
+              const mapUrl = buildGoogleMapsUrl(item);
+              return `
+              <div class="travel-stop-wrapper">
+                <button class="travel-stop" type="button" data-stop-index="${index}">
+                  <span class="travel-stop-dot"></span>
+                  <span class="travel-stop-copy">
+                    <strong>${escapeHtml(item.name)}</strong>
+                    <small>${escapeHtml(item.category || "Điểm đến")}</small>
+                  </span>
+                </button>
+                <div class="travel-stop-links">
+                  <a class="travel-stop-map-link" href="${mapUrl}" target="_blank" rel="noreferrer" title="Xem trên Google Maps">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                  </a>
+                  <a class="travel-stop-dir-link" href="${dirUrl}" target="_blank" rel="noreferrer" title="Chỉ đường trên Google Maps">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+                  </a>
+                </div>
+              </div>
+            `;
+            }
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
+function hasMappableSuggestions(suggestions = []) {
+  return suggestions.length > 0 && suggestions.every((item) =>
+    Number.isFinite(item.latitude) &&
+    Number.isFinite(item.longitude) &&
+    Number.isFinite(item.cityLatitude) &&
+    Number.isFinite(item.cityLongitude)
+  );
+}
+
+function hydrateTravelExplorer(article, suggestions = []) {
+  const shell = article?.querySelector(".travel-explorer");
+  if (!shell || !window.L || !hasMappableSuggestions(suggestions)) return;
+
+  const mapId = shell.dataset.mapId;
+  const mapNode = shell.querySelector(`#${mapId}`);
+  if (!mapNode) return;
+
+  const center = [suggestions[0].cityLatitude, suggestions[0].cityLongitude];
+  const zoom = suggestions[0].cityZoom || 12;
+  const map = window.L.map(mapNode, {
+    zoomControl: false,
+    attributionControl: false,
+    scrollWheelZoom: false
+  }).setView(center, zoom);
+
+  window.L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+    subdomains: "abcd",
+    maxZoom: 19
+  }).addTo(map);
+
+  const markerIcon = window.L.divIcon({
+    className: "custom-map-marker",
+    html: `<span class="marker-pulse"></span><span class="marker-pin"><svg width="16" height="16" viewBox="0 0 24 24" fill="#ffffff" stroke="none"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3" fill="#0b5cab"/></svg></span>`,
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
+    popupAnchor: [0, -20]
+  });
+
+  const markers = suggestions.map((item) => {
+    const marker = window.L.marker([item.latitude, item.longitude], {
+      icon: markerIcon
+    }).addTo(map);
+
+    const tooltipDirUrl = buildGoogleMapsDirectionsUrl(item);
+    const tooltipMapUrl = buildGoogleMapsUrl(item);
+    marker.bindPopup(
+      `
+        <div class="travel-tooltip">
+          <strong>${escapeHtml(item.name)}</strong>
+          <span>${escapeHtml(item.category || "Điểm đến")}</span>
+          <p>${escapeHtml(item.reason || "")}</p>
+          <div class="travel-tooltip-actions">
+            <a class="travel-tooltip-link" href="${tooltipMapUrl}" target="_blank" rel="noreferrer">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              Vị trí
+            </a>
+            <a class="travel-tooltip-link directions" href="${tooltipDirUrl}" target="_blank" rel="noreferrer">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+              Chỉ đường
+            </a>
+          </div>
+        </div>
+      `,
+      { direction: "top", offset: [0, -10], className: "travel-popup" }
+    );
+
+    marker.on("mouseover", () => marker.openPopup());
+    marker.on("mouseout", () => {
+      setTimeout(() => {
+        const popupEl = marker.getPopup()?.getElement();
+        if (popupEl && !popupEl.matches(":hover")) marker.closePopup();
+      }, 200);
+    });
+    return marker;
+  });
+
+  shell.querySelectorAll(".travel-stop").forEach((button) => {
+    const index = Number(button.dataset.stopIndex);
+    const marker = markers[index];
+    const item = suggestions[index];
+    if (!marker || !item) return;
+
+    const focusStop = () => {
+      map.flyTo([item.latitude, item.longitude], Math.max(zoom, 14), { duration: 0.6 });
+      marker.openPopup();
+      shell.querySelectorAll(".travel-stop").forEach((node) => node.classList.remove("active"));
+      button.classList.add("active");
+    };
+
+    button.addEventListener("mouseenter", focusStop);
+    button.addEventListener("focus", focusStop);
+    button.addEventListener("click", focusStop);
+    button.addEventListener("mouseleave", () => {
+      setTimeout(() => {
+        const popupEl = marker.getPopup()?.getElement();
+        if (popupEl && !popupEl.matches(":hover")) marker.closePopup();
+      }, 200);
+    });
+    button.addEventListener("blur", () => marker.closePopup());
+  });
+
+  setTimeout(() => map.invalidateSize(), 0);
 }
 
 function humanizeText(value) {
@@ -390,7 +641,9 @@ function buildAssistantReply(response) {
     : "";
 
   const travelSuggestions = response.travelSuggestions?.length
-    ? `<p>Một vài gợi ý bạn có thể cân nhắc:</p>${renderTravelSuggestionCards(response.travelSuggestions)}`
+    ? hasMappableSuggestions(response.travelSuggestions)
+      ? `<p>Một vài gợi ý bạn có thể cân nhắc trên bản đồ:</p>${renderTravelExplorer(response.travelSuggestions)}`
+      : `<p>Một vài gợi ý bạn có thể cân nhắc:</p>${renderTravelSuggestionCards(response.travelSuggestions)}`
     : "";
 
   const checklist = response.actionChecklist?.length
@@ -585,7 +838,10 @@ function renderResponse(response) {
   lastResponse = response;
   updateState(response);
   if (response.customerAnswer) pushHistory("assistant", response.customerAnswer);
-  appendAssistantMessage(buildAssistantReply(response));
+  const assistantArticle = appendAssistantMessage(buildAssistantReply(response));
+  if (response.travelSuggestions?.length) {
+    hydrateTravelExplorer(assistantArticle, response.travelSuggestions);
+  }
 
   const selectedLabel = response.selectedIntent
     ? intentLabels[response.selectedIntent] || response.selectedIntent
