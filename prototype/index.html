@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vietnam Airlines NEO - Chatbot cải tiến</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <a class="brand-mark" href="#" aria-label="Vietnam Airlines NEO hỗ trợ sau thanh toán">
+        <span>NEO</span>
+        <strong>Chatbot cải tiến</strong>
+      </a>
+      <div class="header-meta" aria-label="Giới hạn demo">
+        <span>Trả lời ngắn gọn</span>
+        <span>Hỏi thêm khi thiếu dữ liệu</span>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <section class="hero-copy" aria-label="Giới thiệu">
+        <p class="track-label">Vietnam Airlines NEO</p>
+        <h1>Hỏi về Vietnam Airlines. NEO trả lời rõ ràng hơn.</h1>
+        <p class="subtitle">Chatbot cải tiến cho câu hỏi về vé, hành lý, check-in, dịch vụ và gợi ý điểm đến. Với tình huống rủi ro như tiền đã trừ hoặc chưa nhận xác nhận, NEO sẽ hỏi đúng thông tin và chuẩn bị chuyển nhân viên khi cần.</p>
+      </section>
+
+      <section class="chat-layout">
+        <section class="chat-card" aria-label="Chat hỗ trợ">
+          <div id="chatMessages" class="chat-messages" aria-live="polite">
+            <article class="message assistant">
+              <div class="avatar">NEO</div>
+              <div class="bubble">
+                <p>Chào bạn, mình là NEO phiên bản cải tiến. Bạn có thể hỏi về vé, hành lý, check-in, vấn đề sau thanh toán hoặc gợi ý nơi đi chơi theo điểm đến.</p>
+                <p class="bubble-note">Với giao dịch thật như vé, thanh toán hoặc hành lý, mình sẽ không kết luận khi chưa có xác nhận chính thức.</p>
+              </div>
+            </article>
+          </div>
+
+          <p id="fallbackNotice" class="fallback-notice" hidden>Đang dùng dữ liệu demo để bạn có thể thử luồng hỗ trợ ổn định.</p>
+
+          <div class="quick-tests" aria-label="Tình huống mẫu">
+            <button class="test-button" data-test="happy" type="button">Hỏi quy định hành lý</button>
+            <button class="test-button" data-test="travel" type="button">Gợi ý nơi đi chơi</button>
+            <button class="test-button" data-test="low" type="button">App lỗi, tiền bị trừ</button>
+            <button class="test-button" data-test="failure" type="button">Hành lý lỗi, tiền đã trừ</button>
+            <button class="test-button" data-test="correction" type="button">Sửa từ vé sang hành lý</button>
+            <button class="test-button" data-test="multi" type="button">Nhiều vấn đề cùng lúc</button>
+          </div>
+
+          <form id="triageForm" class="composer">
+            <label for="messageInput">Nhập tin nhắn cho NEO</label>
+            <textarea id="messageInput" rows="3" placeholder="Ví dụ: Tôi có một ngày ở Đà Nẵng, gợi ý vài nơi đi chơi."></textarea>
+            <div class="composer-actions">
+              <p id="loadingState" class="loading" hidden>NEO đang xem xét tình huống...</p>
+              <div class="action-buttons">
+                <button id="resetButton" class="ghost-button" type="button">Xóa chat</button>
+                <button id="submitButton" class="primary-button" type="submit">Gửi</button>
+              </div>
+            </div>
+          </form>
+        </section>
+
+        <aside class="support-panel" aria-label="Thông tin hỗ trợ">
+          <section class="panel result-card">
+            <div>
+              <p class="section-label">NEO đang hiểu</p>
+              <h2 id="intentTitle">Chưa có vấn đề</h2>
+              <p id="resultSummary" class="summary-copy">Khi bạn gửi tin nhắn, NEO sẽ tóm tắt vấn đề và gợi ý bước tiếp theo.</p>
+            </div>
+            <div class="status-badges">
+              <span id="sourceBadge" class="badge neutral">Chế độ: -</span>
+              <span id="riskBadge" class="badge neutral">Mức hỗ trợ: -</span>
+              <span id="handoffBadge" class="badge neutral">Nhân viên: -</span>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-heading compact">
+              <div>
+                <p class="section-label">Vấn đề</p>
+                <h3>NEO nhận diện</h3>
+              </div>
+              <span id="selectionBadge" class="badge neutral">Trạng thái: -</span>
+            </div>
+            <div id="detectedIssues" class="issue-list"></div>
+          </section>
+
+          <section class="panel">
+            <p class="section-label">Đã biết</p>
+            <h3>Thông tin đã có</h3>
+            <dl id="knownInfo" class="info-grid"></dl>
+          </section>
+
+          <section class="panel">
+            <p class="section-label">Cần hỏi thêm</p>
+            <ul id="nextQuestions" class="clean-list"></ul>
+          </section>
+
+          <section class="panel">
+            <p class="section-label">Còn thiếu</p>
+            <ul id="missingInfo" class="clean-list"></ul>
+          </section>
+
+          <section class="panel">
+            <p class="section-label">Các bước tiếp theo</p>
+            <ol id="actionChecklist" class="checklist"></ol>
+          </section>
+
+          <section class="panel handoff-panel">
+            <div class="panel-heading compact">
+              <div>
+                <p class="section-label">Nếu cần nhân viên</p>
+                <h3>Tóm tắt để chuyển hỗ trợ</h3>
+              </div>
+              <button id="copyButton" class="ghost-button" type="button">Copy</button>
+            </div>
+            <p id="handoffSummary" class="handoff-copy">Chưa cần tóm tắt cho nhân viên.</p>
+            <p id="safetyNotice" class="safety-copy">Bản demo không xác nhận vé, thanh toán hoặc hành lý thật.</p>
+          </section>
+        </aside>
+      </section>
+
+      <div class="state-box" hidden>
+        <h3>Thông tin bot đang nhớ</h3>
+        <dl id="statePreview"></dl>
+      </div>
+    </main>
+
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>
