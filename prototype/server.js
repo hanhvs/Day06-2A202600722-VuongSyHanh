@@ -299,10 +299,10 @@ function withTravelImages(suggestions = []) {
 function detectTravelCityEnhanced(message) {
   const text = normalizeText(message);
   const cityAliases = [
-    { city: "Đà Nẵng", patterns: [/da nang/, /danang/, /dad\b/] },
-    { city: "Hà Nội", patterns: [/ha noi/, /hanoi/, /\bhan\b/] },
+    { city: "Đà Nẵng", patterns: [/da nang/, /danang/, /dad\b/, /\bdn\b/] },
+    { city: "Hà Nội", patterns: [/ha noi/, /hanoi/, /\bhan\b/, /\bhn\b/] },
     { city: "Hội An", patterns: [/hoi an/] },
-    { city: "TP.HCM", patterns: [/tp\.?hcm/, /ho chi minh/, /sai gon/, /saigon/, /\bsgn\b/] },
+    { city: "TP.HCM", patterns: [/tp\.?hcm/, /ho chi minh/, /sai gon/, /saigon/, /\bsgn\b/, /\bhcm\b/] },
     { city: "Nha Trang", patterns: [/nha trang/] },
     { city: "Huế", patterns: [/\bhue\b/] },
     { city: "Phú Quốc", patterns: [/phu quoc/] }
@@ -796,10 +796,10 @@ function withTravelMetadata(city, suggestions = []) {
 function detectTravelCity(message) {
   const text = normalizeText(message);
   const cityAliases = [
-    { city: "Đà Nẵng", patterns: [/da nang/, /danang/, /dad\b/] },
-    { city: "Hà Nội", patterns: [/ha noi/, /hanoi/, /\bhan\b/] },
+    { city: "Đà Nẵng", patterns: [/da nang/, /danang/, /dad\b/, /\bdn\b/] },
+    { city: "Hà Nội", patterns: [/ha noi/, /hanoi/, /\bhan\b/, /\bhn\b/] },
     { city: "Hội An", patterns: [/hoi an/] },
-    { city: "TP.HCM", patterns: [/tp\.?hcm/, /ho chi minh/, /sai gon/, /saigon/, /\bsgn\b/] },
+    { city: "TP.HCM", patterns: [/tp\.?hcm/, /ho chi minh/, /sai gon/, /saigon/, /\bsgn\b/, /\bhcm\b/] },
     { city: "Nha Trang", patterns: [/nha trang/] },
     { city: "Huế", patterns: [/\bhue\b/] },
     { city: "Phú Quốc", patterns: [/phu quoc/] }
