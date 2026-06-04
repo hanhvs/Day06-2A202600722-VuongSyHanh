@@ -800,11 +800,20 @@ function applyRiskGuardrails(result, message, state = {}) {
     result.detectedIssues = uniqueByIntent([...(result.detectedIssues || []), ...deterministicIssues]);
   }
 
-  if (
-    knownInfo.paymentDeducted ||
-    /(tien da tru|tien bi tru|bi tru tien|da thanh toan|chua nhan ve|chua nhan email|dich vu chua.*xac nhan|thanh toan loi)/.test(text)
-  ) {
-    knownInfo.paymentDeducted = knownInfo.paymentDeducted || /(tien da tru|tien bi tru|bi tru tien|da thanh toan)/.test(text);
+  const paymentRelatedIntents = new Set([
+    "ticket_payment_issue",
+    "baggage_addon_payment_issue",
+    "unclear_payment_issue"
+  ]);
+  const messagePaymentSignal = /(tien da tru|tien bi tru|bi tru tien|da thanh toan|chua nhan ve|chua nhan email|dich vu chua.*xac nhan|thanh toan loi)/.test(text);
+  const messageMoneyDeducted = /(tien da tru|tien bi tru|bi tru tien|da thanh toan)/.test(text);
+
+  if (messagePaymentSignal) {
+    knownInfo.paymentDeducted = knownInfo.paymentDeducted || messageMoneyDeducted;
+    riskSignals.add("payment_or_ticket_high_risk");
+    result.riskLevel = "High";
+    result.shouldHandoff = true;
+  } else if (knownInfo.paymentDeducted && paymentRelatedIntents.has(result.selectedIntent)) {
     riskSignals.add("payment_or_ticket_high_risk");
     result.riskLevel = "High";
     result.shouldHandoff = true;
@@ -996,7 +1005,22 @@ Conversation history:
 - Prior user/assistant turns are provided as separate role messages before this user turn. The "message" field in the user JSON is ONLY the latest user message.
 - Treat short follow-up replies (just a city name, "có"/"không", a flight code, a date, "tối nay", …) as CONTINUATIONS of the most recent unresolved question — do NOT restart from scratch.
 - Example: if you just asked "bạn muốn biết thời tiết ở thành phố nào?" and user replies "Hà Nội", you are still in a weather conversation, NOT a travel_place_recommendation conversation.
-- The "conversationState" inside user JSON only carries selectedIntent / knownInfo / detectedIssues from the previous turn (not text). Combine with the role messages above to reconstruct context.
+- The "conversationState" inside user JSON only carries selectedIntent / knownInfo / detectedIssues from the previous turn (not text). selectedIntent is a HINT, NOT a lock — see Reclassification rule below.
+
+Reclassification rule (CRITICAL — read every turn):
+- Each user turn must be classified from scratch based on the new user message + history.
+- If the new message is OFF-TOPIC vs the prior intent (math like "1+1=?", random word, single negation like "sai" without anchor, greeting, joke, unrelated topic), DO NOT keep prior intent. Use general_vna_question and write a fresh customerAnswer that briefly acknowledges and redirects: "Mình là chatbot Vietnam Airlines, mình hỗ trợ về vé, hành lý, check-in, chuyến bay. Bạn cần mình giúp gì về chuyến bay không?"
+- If user says only "sai" / "không đúng" / "sai rồi" without specifying what is wrong, ASK what's wrong — do NOT just repeat the prior answer. Example: "Bạn cho mình biết phần nào chưa đúng nhé — hành trình, hạng vé, hay số kg?"
+- ONLY keep the prior intent when the new message is clearly a continuation (a short answer to your prior question, an additional detail like city/route/date, a follow-up like "hạng phổ thông", "tôi đi nội địa").
+
+Repetition check (run before writing customerAnswer):
+- Look at your previous assistant turn. If your new customerAnswer is essentially the same paragraph rearranged, you are wrong — the user said something new and you ignored it. Generate a fresh answer.
+- NEVER copy-paste your previous customerAnswer verbatim or near-verbatim when the user message has changed (even a little). At minimum, address what the user newly said.
+
+needsIntentSelection rule:
+- Set needsIntentSelection = true ONLY when detectedIssues contains 2+ DIFFERENT specific intents (e.g. baggage_addon_payment_issue + date_change_request) AND user clearly asked them in the same message.
+- For greetings ("hi", "chào", "alo"), single chitchat ("1+1=?", "tôi muốn bay lắc", "ok", "sai"), or any single-intent message: needsIntentSelection MUST be false. detectedIssues should be a single entry (often general_vna_question).
+- Greetings → general_vna_question + customerAnswer = brief intro: "Chào bạn, mình là NEO. Bạn cần mình hỗ trợ về vé, hành lý, check-in hay tra chuyến bay không?"
 
 Out of scope (NEO does NOT have tools/data for these):
 - Weather forecast (today / tomorrow / hourly).
