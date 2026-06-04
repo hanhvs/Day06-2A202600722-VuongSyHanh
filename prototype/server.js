@@ -9,12 +9,13 @@ dotenv.config();
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const FORCE_MOCK_MODE = String(process.env.FORCE_MOCK_MODE || "false").toLowerCase() === "true";
-const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS || 12000);
+const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS || 30000);
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
-app.use(express.static("."));
+app.use(express.static(".", { extensions: ["html"] }));
+app.use("/evidence", express.static("../02-group-spec/evidence"));
 
 const IntentEnum = z.enum([
   "general_vna_question",
@@ -28,7 +29,8 @@ const IntentEnum = z.enum([
   "date_change_request",
   "refund_request",
   "other_addon_issue",
-  "travel_place_recommendation"
+  "travel_place_recommendation",
+  "flight_status_query"
 ]);
 
 const RiskEnum = z.enum(["Low", "Medium", "High"]);
@@ -62,6 +64,21 @@ const TravelSuggestionSchema = z.object({
   caution: z.string().default("Kiểm tra giờ mở cửa, phí và điều kiện thực tế trước khi đi.")
 });
 
+const FlightResultSchema = z.object({
+  flightNumber: z.string().nullable().default(null),
+  airline: z.string().nullable().default(null),
+  status: z.string().nullable().default(null),
+  departureIata: z.string().nullable().default(null),
+  departureAirport: z.string().nullable().default(null),
+  departureScheduled: z.string().nullable().default(null),
+  departureEstimated: z.string().nullable().default(null),
+  arrivalIata: z.string().nullable().default(null),
+  arrivalAirport: z.string().nullable().default(null),
+  arrivalScheduled: z.string().nullable().default(null),
+  arrivalEstimated: z.string().nullable().default(null),
+  delayMinutes: z.number().nullable().default(null)
+});
+
 const TriageResponseSchema = z.object({
   source: z.enum(["llm", "fallback_mock"]).default("fallback_mock"),
   detectedIssues: z.array(IssueSchema).default([]),
@@ -74,6 +91,7 @@ const TriageResponseSchema = z.object({
   nextQuestions: z.array(z.string()).default([]),
   actionChecklist: z.array(z.string()).default([]),
   travelSuggestions: z.array(TravelSuggestionSchema).default([]),
+  flightResults: z.array(FlightResultSchema).default([]),
   customerAnswer: z.string().default(""),
   handoffSummary: z.string().default(""),
   shouldHandoff: z.boolean().default(false),
@@ -350,7 +368,11 @@ function mergeKnownInfo(message, state = {}) {
   }
 
   const bookingMatch = message.match(/\b([A-Z0-9]{6})\b/i);
-  if (bookingMatch && !/(HAN|SGN|DAD|TOKYO|HANOI)/i.test(bookingMatch[1])) {
+  if (
+    bookingMatch &&
+    !/(HAN|SGN|DAD|TOKYO|HANOI)/i.test(bookingMatch[1]) &&
+    !FLIGHT_CODE_REGEX.test(bookingMatch[1])
+  ) {
     knownInfo.bookingCode = bookingMatch[1].toUpperCase();
   }
 
@@ -370,10 +392,39 @@ function mergeKnownInfoValues(base = {}, override = {}) {
   return merged;
 }
 
+const FLIGHT_CODE_REGEX = /\b(vn|qh|vj|bl|0v|hvn)\s?\d{1,4}\b/i;
+
+function extractFlightCode(message) {
+  const match = String(message || "").match(FLIGHT_CODE_REGEX);
+  if (!match) return null;
+  return match[0].replace(/\s+/g, "").toUpperCase();
+}
+
 function detectIssues(message) {
   const text = normalizeText(message);
   const issues = [];
   const hasPaymentOrError = /(app bao loi|bao loi|loi thanh toan|tien da tru|tien bi tru|bi tru tien|da thanh toan|chua xac nhan|chua nhan)/.test(text);
+  const flightCode = extractFlightCode(message);
+  const hasFlightStatusKeyword = /(trang thai chuyen|tinh trang chuyen|tre chuyen|chuyen tre|delay chuyen|chuyen.*may gio|may gio.*bay|may gio.*den|may gio.*ha canh|da bay chua|da dap chua|da ha canh chua|track flight|flight status|chuyen.*den noi chua)/.test(text);
+  const hasFlightSearchIntent = /(tim chuyen bay|tim ve\b|chuyen bay tu|chuyen tu .* (den|di)\b|flight from .* to\b)/.test(text);
+  const iataCodes = text.match(/\b(han|sgn|dad|hph|cxr|hui|pqc|vca|dli|vcs|vii|thd)\b/g) || [];
+  const hasIataPair = new Set(iataCodes).size >= 2;
+  const cityWord = "(ha noi|sai gon|tp\\.?ho chi minh|tp\\.?hcm|tphcm|ho chi minh|da nang|hai phong|nha trang|hue|phu quoc|can tho|da lat|con dao|vinh|thanh hoa)";
+  const hasCityPair = new RegExp(`${cityWord}.{0,25}\\b(di|den|to|-|–|>)\\b.{0,25}${cityWord}`).test(text);
+  const mentionsFlightWord = /(chuyen bay|chuyen|flight|bay)/.test(text);
+
+  if ((flightCode || hasFlightStatusKeyword || hasFlightSearchIntent || hasIataPair || (hasCityPair && mentionsFlightWord)) && !hasPaymentOrError) {
+    issues.push({
+      intent: "flight_status_query",
+      label: flightCode
+        ? `Tra cứu trạng thái chuyến ${flightCode}`
+        : "Tra cứu trạng thái chuyến bay",
+      confidence: "High",
+      evidence: flightCode
+        ? `User nhắc mã chuyến ${flightCode}`
+        : "User hỏi về trạng thái/giờ đến/đi của chuyến bay"
+    });
+  }
 
   if (/(check.?in|lam thu tuc|thu tuc truc tuyen|online checkin)/.test(text)) {
     issues.push({
@@ -531,6 +582,13 @@ function missingInfoFor(intent, knownInfo, riskLevel) {
     return missing;
   }
 
+  if (intent === "flight_status_query") {
+    return [
+      "Mã hiệu chuyến bay (ví dụ VN123, QH245)",
+      "Ngày bay nếu khác hôm nay"
+    ];
+  }
+
   if (intent === "ticket_payment_issue") {
     return [
       ["bookingCode", "Mã đặt chỗ hoặc mã giao dịch"],
@@ -616,6 +674,15 @@ function checklistFor(intent, riskLevel, knownInfo) {
     ];
   }
 
+  if (intent === "flight_status_query") {
+    return [
+      "NEO tra dữ liệu chuyến bay realtime/lịch từ Aviationstack, cập nhật 30-60 giây.",
+      "Nếu trạng thái khác app/website Vietnam Airlines, ưu tiên hệ thống đặt chỗ chính thức.",
+      "Dữ liệu chuyến bay không xác nhận tình trạng vé, hành khách hay hành lý của bạn.",
+      "Đến sân bay theo giờ check-in chính thức ngay cả khi chuyến bị báo trễ trên dữ liệu live."
+    ];
+  }
+
   if (intent === "ticket_payment_issue") {
     return [
       "Chưa kết luận vé đã hợp lệ cho tới khi hệ thống đặt chỗ chính thức xác nhận.",
@@ -666,6 +733,9 @@ function customerAnswerFor(intent, knownInfo, riskLevel) {
   if (intent === "travel_place_recommendation") {
     return "Mình có thể gợi ý vài nơi đi chơi theo điểm đến và sở thích của bạn. Các gợi ý dưới đây mang tính tham khảo để bạn lên ý tưởng nhanh; giờ mở cửa, phí và điều kiện thực tế nên kiểm tra lại trước khi đi.";
   }
+  if (intent === "flight_status_query") {
+    return "Mình có thể tra trạng thái chuyến bay realtime. Bạn cho mình mã hiệu chuyến (ví dụ VN123) và ngày bay (nếu khác hôm nay) để mình tra giúp nhé.";
+  }
   if (intent === "ticket_payment_issue") {
     return "Mình hiểu bạn đang gặp vấn đề với vé hoặc xác nhận sau thanh toán. Vì liên quan đến vé/tiền, mình chưa thể kết luận giao dịch đã thành công nếu chưa có xác nhận từ hệ thống đặt chỗ.";
   }
@@ -710,6 +780,12 @@ function applyRiskGuardrails(result, message, state = {}) {
     result.selectedIntent = "ticket_payment_issue";
   } else if (deterministicIntents.has("travel_place_recommendation") && !knownInfo.paymentDeducted) {
     result.selectedIntent = deterministicIntents.size === 1 ? "travel_place_recommendation" : result.selectedIntent;
+  } else if (
+    deterministicIntents.has("flight_status_query") &&
+    !knownInfo.paymentDeducted &&
+    (result.selectedIntent === "general_vna_question" || deterministicIntents.size === 1)
+  ) {
+    result.selectedIntent = "flight_status_query";
   }
 
   if (!result.detectedIssues?.length || result.source === "llm") {
@@ -744,6 +820,23 @@ function applyRiskGuardrails(result, message, state = {}) {
       result.travelSuggestions = result.travelSuggestions?.length ? result.travelSuggestions : travelData.suggestions;
     } else {
       result.travelSuggestions = [];
+    }
+    if (result.selectedIntent !== "flight_status_query") {
+      result.flightResults = [];
+    } else if (Array.isArray(result.flightResults) && result.flightResults.length) {
+      const seen = new Set();
+      result.flightResults = result.flightResults
+        .filter((f) => {
+          const key = f?.flightNumber || JSON.stringify(f);
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .sort((a, b) => {
+          const ta = a?.departureScheduled || "";
+          const tb = b?.departureScheduled || "";
+          return ta.localeCompare(tb);
+        });
     }
     result.customerAnswer = result.customerAnswer || customerAnswerFor(result.selectedIntent, knownInfo, result.riskLevel);
     if (
@@ -834,9 +927,9 @@ function fallbackTriage(message, conversationState = {}, fallbackReason = "LLM u
 function buildSystemPrompt() {
   return `
 You are an improved Vietnam Airlines NEO chatbot prototype.
-Return only JSON matching this shape:
+Always return JSON matching this shape (intents enum below is exhaustive):
 {
-  "detectedIssues": [{"intent": "general_vna_question|baggage_policy_question|checkin_question|flight_document_question|ticket_payment_issue|baggage_addon_payment_issue|unclear_payment_issue|seat_selection_issue|date_change_request|refund_request|other_addon_issue|travel_place_recommendation", "label": "string", "confidence": "Low|Medium|High", "evidence": "string"}],
+  "detectedIssues": [{"intent": "general_vna_question|baggage_policy_question|checkin_question|flight_document_question|ticket_payment_issue|baggage_addon_payment_issue|unclear_payment_issue|seat_selection_issue|date_change_request|refund_request|other_addon_issue|travel_place_recommendation|flight_status_query", "label": "string", "confidence": "Low|Medium|High", "evidence": "string"}],
   "selectedIntent": "intent or null",
   "needsIntentSelection": boolean,
   "riskLevel": "Low|Medium|High",
@@ -857,20 +950,49 @@ Return only JSON matching this shape:
   "nextQuestions": ["string"],
   "actionChecklist": ["string"],
   "travelSuggestions": [{"name": "string", "city": "string|null", "category": "string", "reason": "string", "bestFor": "string", "caution": "string"}],
+  "flightResults": [{"flightNumber": "VN217", "airline": "Vietnam Airlines", "status": "scheduled|active|landed|cancelled|incident|diverted", "departureIata": "HAN", "departureAirport": "Noibai International", "departureScheduled": "17:00", "departureEstimated": "17:10", "arrivalIata": "SGN", "arrivalAirport": "Tan Son Nhat International", "arrivalScheduled": "19:10", "arrivalEstimated": null, "delayMinutes": 10}],
   "customerAnswer": "friendly answer to the passenger in Vietnamese",
   "handoffSummary": "string",
   "shouldHandoff": boolean,
   "safetyNotice": "string"
 }
 
+Tools available:
+- search_flights — Aviationstack realtime/schedule lookup. CALL this tool whenever the user is asking about:
+  • a specific flight code (e.g. "VN123 hôm nay sao rồi", "chuyến QH245"). → pass flight_iata.
+  • a route between two airports/cities (e.g. "tìm chuyến HAN to SGN", "chuyến từ Hà Nội đi Đà Nẵng", "HAN-SGN tối nay"). → pass dep_iata + arr_iata. If user didn't mention a date, LEAVE flight_date blank (realtime endpoint returns today by default). Do NOT ask the user for a date first.
+  • an airline + day (e.g. "Vietnam Airlines hôm nay có chuyến nào trễ"). → pass airline_iata. Vietnam Airlines airline_iata = "VN".
+  Use intent flight_status_query for all of these.
+
+  Vietnam airport IATA cheatsheet (use these directly without re-asking the user):
+    HAN = Hà Nội (Nội Bài), SGN = TP.HCM / Sài Gòn (Tân Sơn Nhất), DAD = Đà Nẵng,
+    HPH = Hải Phòng, CXR = Nha Trang / Cam Ranh, HUI = Huế, PQC = Phú Quốc,
+    VCA = Cần Thơ, DLI = Đà Lạt, VCS = Côn Đảo, VII = Vinh, THD = Thanh Hóa.
+
+  IMPORTANT — you DO have realtime flight data access via search_flights. NEVER tell the user "hiện tại tôi chưa thể truy cập dữ liệu chuyến bay thực tế", "tôi không có dữ liệu realtime", or similar. Always call the tool first. The "do not access internal data" rule applies to Vietnam Airlines booking/passenger/payment systems, NOT to public flight schedules.
+
+  DO NOT call this tool for: baggage rules, check-in steps, document/visa, travel-place suggestions, payment/refund/ticket-issue triage, or general FAQ.
+
+  After the tool returns:
+  - If flights are returned, populate "flightResults" with EVERY flight from the tool result, up to 25. Include ALL airlines (Vietnam Airlines, VietJet, Bamboo, Vietravel, foreign carriers, …) — do NOT filter to Vietnam Airlines unless the user explicitly named an airline. The user wants the full comparison list.
+  - Sort flightResults STRICTLY by departureScheduled ascending (earliest first). Double-check the sort.
+  - Dedupe by flightNumber (codeshares often appear twice — keep the first).
+  - Keep "customerAnswer" SHORT — ONE sentence. If pagination.total > flightResults.length, mention both: "Có X chuyến HAN → SGN hôm nay (hiển thị Y gần nhất), sắp xếp theo giờ khởi hành." Otherwise "Có X chuyến HAN → SGN hôm nay, sắp xếp theo giờ khởi hành.". Do NOT list any flight numbers/times in customerAnswer; the UI renders cards from flightResults.
+  - Map tool result → flightResults fields: flight.iata → flightNumber, airline.name → airline, flight_status → status (keep enum value), departure.iata → departureIata, departure.airport → departureAirport, departure.scheduled → departureScheduled (FORMAT as "HH:mm" 24-hour from the ISO string), departure.estimated → departureEstimated (same HH:mm format, null if same as scheduled or null in source), departure.delay → delayMinutes (integer minutes; null if source is null). Same shape for arrival.
+  - If zero flights, leave flightResults empty and say so in customerAnswer; ask user to verify flight number/airline/route.
+  - If error code "function_access_restricted", explain in customerAnswer that the free Aviationstack plan only supports realtime (today's) flights, and ask if user wants to check a different flight today instead.
+  - If other error, say so in customerAnswer honestly and ask user to try again later.
+  - You may call the tool at most twice per turn.
+
 Rules:
 - Product is Vietnam Airlines NEO, Track B Travel & Hospitality.
-- The chatbot can answer general Vietnam Airlines questions, but the improved slice is stronger handling for vague, multi-intent, and high-risk cases.
+- The chatbot can answer general Vietnam Airlines questions, but the improved slice is stronger handling for vague, multi-intent, high-risk, and flight-status cases.
 - For general airline questions, answer briefly in Vietnamese and ask for missing details if route/fare/time affects the answer.
 - If the user asks for travel inspiration, places to visit, food areas, or a light itinerary at a destination, use intent travel_place_recommendation and return 3-5 travelSuggestions in Vietnamese.
-- TravelSuggestions should be practical, friendly, and lightweight like a travel assistant, but do not claim live opening hours, prices, availability, distance, or map coordinates.
+- TravelSuggestions should be practical, friendly, and lightweight, but do not claim live opening hours, prices, availability, distance, or map coordinates.
 - Do not book hotels, restaurants, tours, attractions, flights, change ticket, refund, confirm ticket validity, or update baggage.
 - If the user says money was deducted, payment completed, ticket/email missing, or service not confirmed, riskLevel must be High and shouldHandoff true.
+- flight_status_query is informational only; do NOT mark it High risk unless combined with a payment/ticket issue.
 - If user asks multiple issues, list detectedIssues and ask them to choose one first.
 - If user corrects from ticket to baggage, keep paymentDeducted from conversationState.
 - Ask concrete missing info, not generic questions.
@@ -879,7 +1001,74 @@ Rules:
 `;
 }
 
-async function callOpenAI(message, conversationState) {
+const MAX_TOOL_ITERATIONS = 3;
+const TOOL_RESULT_MAX_CHARS = 20000;
+
+function nowInVietnamISO() {
+  const offsetMs = 7 * 3600 * 1000;
+  return new Date(Date.now() + offsetMs).toISOString().slice(0, 10);
+}
+
+const TOOLS = {
+  search_flights: {
+    schema: {
+      type: "function",
+      function: {
+        name: "search_flights",
+        description:
+          "Tra realtime/lịch chuyến bay qua Aviationstack. " +
+          "GỌI ngay khi user hỏi: (a) một mã chuyến cụ thể như VN123, " +
+          "(b) một tuyến hai sân bay (HAN-SGN, Hà Nội đi Đà Nẵng), " +
+          "(c) một hãng + ngày cụ thể. " +
+          "flight_date: CHỈ truyền khi user nói ngày khác hôm nay (vd 'ngày mai', '10/6'). " +
+          "Cho câu hỏi về hôm nay hoặc không nói ngày, BỎ TRỐNG flight_date (endpoint realtime tự trả chuyến hôm nay; gói free chỉ hỗ trợ realtime, không hỗ trợ flight_date). " +
+          "Đây là cách DUY NHẤT để biết dữ liệu chuyến bay thật — đừng nói 'tôi không có dữ liệu realtime' mà phải gọi tool. " +
+          "KHÔNG gọi cho: quy định hành lý, check-in, giấy tờ, đặt/hoàn vé, " +
+          "vấn đề thanh toán, hay gợi ý du lịch.",
+        parameters: {
+          type: "object",
+          properties: {
+            flight_iata: {
+              type: "string",
+              description: "Mã hiệu IATA chuyến bay (vd 'VN123', 'QH245'). Ưu tiên nếu user cho mã."
+            },
+            flight_date: {
+              type: "string",
+              description: "Ngày bay YYYY-MM-DD. 'Hôm nay' theo giờ VN dùng currentDateVN trong user payload."
+            },
+            dep_iata: { type: "string", description: "IATA 3 ký tự sân bay đi (HAN, SGN, DAD, ...)." },
+            arr_iata: { type: "string", description: "IATA 3 ký tự sân bay đến." },
+            airline_iata: { type: "string", description: "IATA 2 ký tự hãng. Vietnam Airlines = VN." },
+            flight_status: {
+              type: "string",
+              enum: ["scheduled", "active", "landed", "cancelled", "incident", "diverted"]
+            },
+            limit: { type: "integer", minimum: 5, maximum: 30, default: 25, description: "Lấy đủ để user so sánh. Mặc định 25." }
+          },
+          required: []
+        }
+      }
+    },
+    async execute(args) {
+      const parsed = FlightsQuerySchema.safeParse(args || {});
+      if (!parsed.success) {
+        return { error: "Tham số tool không hợp lệ", details: parsed.error.flatten() };
+      }
+      return await callAviationstack(parsed.data);
+    },
+    stageLabelForCall(args = {}) {
+      if (args.flight_iata) return `Đang tra Aviationstack — chuyến ${args.flight_iata}`;
+      if (args.dep_iata && args.arr_iata) return `Đang tra Aviationstack — ${args.dep_iata} → ${args.arr_iata}`;
+      return "Đang tra Aviationstack — danh sách chuyến bay";
+    },
+    stageLabelForResult(result) {
+      if (result?.error) return `Aviationstack lỗi: ${result.error}`;
+      return `Aviationstack trả ${result?.flights?.length || 0} chuyến`;
+    }
+  }
+};
+
+async function callOpenAI(message, conversationState, onEvent) {
   if (FORCE_MOCK_MODE || !process.env.OPENAI_API_KEY) {
     throw new Error(FORCE_MOCK_MODE ? "FORCE_MOCK_MODE enabled" : "Missing OPENAI_API_KEY");
   }
@@ -890,19 +1079,66 @@ async function callOpenAI(message, conversationState) {
     timeout: LLM_TIMEOUT_MS
   });
 
-  const completion = await client.chat.completions.create({
-    model: OPENAI_MODEL,
-    response_format: { type: "json_object" },
-    temperature: 0.2,
-    messages: [
-      { role: "system", content: buildSystemPrompt() },
-      { role: "user", content: JSON.stringify({ message, conversationState }) }
-    ]
-  });
+  const messages = [
+    { role: "system", content: buildSystemPrompt() },
+    {
+      role: "user",
+      content: JSON.stringify({
+        message,
+        conversationState,
+        currentDateVN: nowInVietnamISO()
+      })
+    }
+  ];
+  const toolSchemas = Object.values(TOOLS).map((tool) => tool.schema);
 
-  const content = completion.choices?.[0]?.message?.content;
-  if (!content) throw new Error("OpenAI returned empty content");
-  return JSON.parse(content);
+  for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
+    const completion = await client.chat.completions.create({
+      model: OPENAI_MODEL,
+      response_format: { type: "json_object" },
+      temperature: 0.2,
+      tools: toolSchemas,
+      tool_choice: "auto",
+      messages
+    });
+    const msg = completion.choices?.[0]?.message;
+    if (!msg) throw new Error("OpenAI returned empty choice");
+    messages.push(msg);
+
+    const toolCalls = msg.tool_calls || [];
+    if (toolCalls.length === 0) {
+      console.log(`[llm] iter=${iter} no tool_calls -> final JSON`);
+      if (!msg.content) throw new Error("OpenAI returned no content and no tool calls");
+      return JSON.parse(msg.content);
+    }
+
+    console.log(`[llm] iter=${iter} tool_calls=${toolCalls.map((c) => c.function?.name).join(",")}`);
+
+    for (const call of toolCalls) {
+      const name = call.function?.name;
+      const tool = TOOLS[name];
+      let args = {};
+      try {
+        args = JSON.parse(call.function?.arguments || "{}");
+      } catch {
+        args = {};
+      }
+      onEvent?.({ type: "stage", label: tool?.stageLabelForCall?.(args) || `Đang gọi tool ${name}` });
+
+      const result = tool
+        ? await tool.execute(args)
+        : { error: `Tool không tồn tại: ${name}` };
+
+      onEvent?.({ type: "stage", label: tool?.stageLabelForResult?.(result) || `Tool ${name} hoàn tất` });
+      messages.push({
+        role: "tool",
+        tool_call_id: call.id,
+        content: JSON.stringify(result).slice(0, TOOL_RESULT_MAX_CHARS)
+      });
+    }
+  }
+
+  throw new Error(`OpenAI tool loop vượt ${MAX_TOOL_ITERATIONS} vòng — có thể model bị kẹt`);
 }
 
 function fillAndValidate(raw, message, conversationState, source) {
@@ -923,8 +1159,204 @@ app.get("/api/health", (_req, res) => {
     endpoint: "/api/triage",
     forceMockMode: FORCE_MOCK_MODE,
     hasApiKey: Boolean(process.env.OPENAI_API_KEY),
+    hasAviationstackKey: Boolean(process.env.AVIATIONSTACK_API_KEY),
     model: OPENAI_MODEL
   });
+});
+
+const FlightStatusEnum = z.enum([
+  "scheduled",
+  "active",
+  "landed",
+  "cancelled",
+  "incident",
+  "diverted"
+]);
+
+const FlightsQuerySchema = z.object({
+  dep_iata: z.string().trim().length(3).optional(),
+  arr_iata: z.string().trim().length(3).optional(),
+  dep_icao: z.string().trim().length(4).optional(),
+  arr_icao: z.string().trim().length(4).optional(),
+  flight_iata: z.string().trim().min(2).max(10).optional(),
+  flight_icao: z.string().trim().min(3).max(10).optional(),
+  flight_number: z.string().trim().min(1).max(5).optional(),
+  airline_iata: z.string().trim().length(2).optional(),
+  airline_icao: z.string().trim().length(3).optional(),
+  flight_status: FlightStatusEnum.optional(),
+  flight_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "flight_date phải YYYY-MM-DD").optional(),
+  min_delay_dep: z.coerce.number().int().min(0).optional(),
+  max_delay_dep: z.coerce.number().int().min(0).optional(),
+  min_delay_arr: z.coerce.number().int().min(0).optional(),
+  max_delay_arr: z.coerce.number().int().min(0).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  offset: z.coerce.number().int().min(0).default(0)
+});
+
+function normalizeEndpoint(node) {
+  if (!node) return null;
+  return {
+    airport: node.airport ?? null,
+    iata: node.iata ?? null,
+    icao: node.icao ?? null,
+    terminal: node.terminal ?? null,
+    gate: node.gate ?? null,
+    timezone: node.timezone ?? null,
+    scheduledAt: node.scheduled ?? null,
+    estimatedAt: node.estimated ?? null,
+    actualAt: node.actual ?? null,
+    delayMinutes: node.delay ?? null
+  };
+}
+
+function normalizeFlight(row) {
+  if (!row || typeof row !== "object") return null;
+  return {
+    flightDate: row.flight_date ?? null,
+    status: row.flight_status ?? null,
+    airline: row.airline
+      ? {
+          name: row.airline.name ?? null,
+          iata: row.airline.iata ?? null,
+          icao: row.airline.icao ?? null
+        }
+      : null,
+    flight: row.flight
+      ? {
+          number: row.flight.number ?? null,
+          iata: row.flight.iata ?? null,
+          icao: row.flight.icao ?? null,
+          codeshared: row.flight.codeshared ?? null
+        }
+      : null,
+    departure: normalizeEndpoint(row.departure),
+    arrival: normalizeEndpoint(row.arrival),
+    aircraft: row.aircraft
+      ? {
+          registration: row.aircraft.registration ?? null,
+          iata: row.aircraft.iata ?? null,
+          icao: row.aircraft.icao ?? null,
+          icao24: row.aircraft.icao24 ?? null
+        }
+      : null,
+    live: row.live
+      ? {
+          updatedAt: row.live.updated ?? null,
+          latitude: row.live.latitude ?? null,
+          longitude: row.live.longitude ?? null,
+          altitude: row.live.altitude ?? null,
+          directionDeg: row.live.direction ?? null,
+          speedHorizontalKmh: row.live.speed_horizontal ?? null,
+          speedVerticalKmh: row.live.speed_vertical ?? null,
+          isOnGround: Boolean(row.live.is_ground)
+        }
+      : null
+  };
+}
+
+async function callAviationstack(query) {
+  const apiKey = process.env.AVIATIONSTACK_API_KEY;
+  if (!apiKey) {
+    return {
+      error: "AVIATIONSTACK_API_KEY chưa được set trong .env",
+      code: "missing_key",
+      hint: "Đăng ký free key tại https://aviationstack.com rồi gán vào .env"
+    };
+  }
+
+  const baseUrl = process.env.AVIATIONSTACK_BASE_URL || "https://api.aviationstack.com/v1";
+  const timeoutMs = Number(process.env.AVIATIONSTACK_TIMEOUT_MS || 15000);
+
+  const todayVN = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+  const effectiveQuery = { ...(query || {}) };
+  if (effectiveQuery.flight_date === todayVN) {
+    delete effectiveQuery.flight_date;
+  }
+
+  const params = new URLSearchParams({ access_key: apiKey });
+  for (const [key, value] of Object.entries(effectiveQuery)) {
+    if (value === undefined || value === null || value === "") continue;
+    params.set(key, String(value));
+  }
+
+  const summary = Object.entries(effectiveQuery)
+    .filter(([, v]) => v !== undefined && v !== null && v !== "")
+    .map(([k, v]) => `${k}=${v}`)
+    .join(" ");
+  console.log(`[aviationstack] -> ${baseUrl}/flights ${summary || "(no filters)"}`);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const startedAt = Date.now();
+  try {
+    const upstream = await fetch(`${baseUrl}/flights?${params.toString()}`, {
+      signal: controller.signal
+    });
+    const body = await upstream.json().catch(() => null);
+    const elapsedMs = Date.now() - startedAt;
+
+    if (!upstream.ok || body?.error) {
+      console.log(`[aviationstack] <- ${upstream.status} ${body?.error?.code || ""} ${elapsedMs}ms`);
+      return {
+        error: body?.error?.message || `Aviationstack trả ${upstream.status}`,
+        code: body?.error?.code || null,
+        status: upstream.status,
+        details: body?.error?.context || null
+      };
+    }
+
+    const rows = Array.isArray(body?.data)
+      ? body.data
+      : Array.isArray(body?.results)
+        ? body.results
+        : [];
+
+    console.log(`[aviationstack] <- ${upstream.status} count=${rows.length} total=${body?.pagination?.total ?? "?"} ${elapsedMs}ms`);
+
+    return {
+      pagination: body?.pagination || null,
+      flights: rows.map(normalizeFlight).filter(Boolean)
+    };
+  } catch (err) {
+    console.log(`[aviationstack] <- error: ${err?.message}`);
+    return {
+      error: err?.name === "AbortError"
+        ? `Aviationstack timeout sau ${timeoutMs}ms`
+        : err?.message || "Aviationstack call failed",
+      code: err?.name === "AbortError" ? "timeout" : "fetch_failed"
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function statusForAviationstackResult(result) {
+  if (!result.error) return 200;
+  if (result.code === "missing_key") return 503;
+  if (result.code === "invalid_access_key" || result.code === "missing_access_key" || result.code === "inactive_user") return 401;
+  if (result.code === "rate_limit_reached" || result.code === "usage_limit_reached") return 429;
+  if (result.code === "function_access_restricted" || result.code === "invalid_api_function") return 403;
+  if (result.code === "timeout") return 504;
+  if (typeof result.status === "number" && result.status >= 400 && result.status < 600) return result.status;
+  return 502;
+}
+
+app.get("/api/flights", async (req, res) => {
+  const parsed = FlightsQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: "Tham số không hợp lệ",
+      details: parsed.error.flatten()
+    });
+  }
+
+  const result = await callAviationstack(parsed.data);
+  if (result.error) {
+    return res.status(statusForAviationstackResult(result)).json(result);
+  }
+
+  console.log(`[flights] count=${result.flights.length} dep=${parsed.data.dep_iata || "-"} arr=${parsed.data.arr_iata || "-"} flight=${parsed.data.flight_iata || "-"}`);
+  res.json(result);
 });
 
 app.post("/api/triage", async (req, res) => {
@@ -940,9 +1372,87 @@ app.post("/api/triage", async (req, res) => {
     console.log(`[triage] source=llm intent=${result.selectedIntent || "selection"} risk=${result.riskLevel}`);
     res.json(result);
   } catch (error) {
+    console.error("[triage] LLM path threw:", error?.message);
+    if (error?.issues) console.error("[triage] zod issues:", JSON.stringify(error.issues, null, 2));
     const result = fallbackTriage(message, conversationState, error?.message || "LLM unavailable");
     console.log(`[triage] source=fallback_mock intent=${result.selectedIntent || "selection"} risk=${result.riskLevel}`);
     res.json(result);
+  }
+});
+
+app.post("/api/triage/stream", async (req, res) => {
+  const parsed = TriageRequestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Request must include message and valid conversationState." });
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders?.();
+
+  const send = (event) => {
+    res.write(`data: ${JSON.stringify(event)}\n\n`);
+  };
+  const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const { message, conversationState } = parsed.data;
+
+  try {
+    send({ type: "stage", label: "Đang đọc tin nhắn của bạn" });
+    await pause(200);
+
+    const previewIssues = detectIssues(message);
+    const intentLabel = previewIssues.length === 1
+      ? `1 vấn đề: ${previewIssues[0].label}`
+      : `${previewIssues.length} vấn đề có thể liên quan`;
+    send({ type: "stage", label: `Đang phân loại — ${intentLabel}` });
+    await pause(260);
+
+    const previewKnown = mergeKnownInfo(message, conversationState);
+    const knownCount = Object.values(previewKnown).filter((v) => v !== null && v !== false && v !== "").length;
+    send({
+      type: "stage",
+      label: knownCount
+        ? `Đang trích ${knownCount} thông tin có sẵn từ hội thoại`
+        : "Đang trích thông tin có sẵn từ hội thoại"
+    });
+    await pause(220);
+
+    let result;
+    if (FORCE_MOCK_MODE || !process.env.OPENAI_API_KEY) {
+      send({ type: "stage", label: "Đang dùng dữ liệu demo (fallback mock)" });
+      await pause(220);
+      result = fallbackTriage(
+        message,
+        conversationState,
+        FORCE_MOCK_MODE ? "FORCE_MOCK_MODE enabled" : "Missing OPENAI_API_KEY"
+      );
+    } else {
+      send({ type: "stage", label: `Đang hỏi AI (${OPENAI_MODEL})` });
+      try {
+        const raw = await callOpenAI(message, conversationState, send);
+        send({ type: "stage", label: "Đang ghép câu trả lời AI với guardrails" });
+        await pause(180);
+        result = fillAndValidate(raw, message, conversationState, "llm");
+      } catch (err) {
+        send({ type: "stage", label: "AI không phản hồi — chuyển sang dữ liệu demo" });
+        await pause(220);
+        result = fallbackTriage(message, conversationState, err?.message || "LLM unavailable");
+      }
+    }
+
+    send({ type: "stage", label: `Đang kiểm tra rủi ro (mức ${result.riskLevel})` });
+    await pause(220);
+
+    console.log(`[triage-stream] source=${result.source} intent=${result.selectedIntent || "selection"} risk=${result.riskLevel}`);
+    send({ type: "done", result });
+  } catch (err) {
+    console.error("[triage-stream] error:", err);
+    try { send({ type: "error", message: err?.message || "Server lỗi" }); } catch {}
+  } finally {
+    res.end();
   }
 });
 

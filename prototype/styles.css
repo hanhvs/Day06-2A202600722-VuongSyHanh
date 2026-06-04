@@ -255,6 +255,121 @@ h3 {
   font-size: 13px;
 }
 
+.flight-list-header {
+  margin: 10px 0 4px;
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.2px;
+}
+
+.flight-suggestions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+
+.flight-card {
+  display: grid;
+  gap: 6px;
+  padding: 11px 12px;
+  border: 1px solid #d6e4ee;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.flight-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.flight-card-top strong {
+  color: var(--navy);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
+.flight-badge {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.flight-badge.ok {
+  color: var(--green);
+  background: var(--green-soft);
+}
+
+.flight-badge.warn {
+  color: #b1432b;
+  background: #fde2da;
+}
+
+.flight-badge.neutral {
+  color: var(--muted);
+  background: #eef2f5;
+}
+
+.flight-airline {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.flight-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+}
+
+.flight-leg {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.leg-iata {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--navy);
+  letter-spacing: 0.5px;
+}
+
+.leg-airport {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.leg-times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.leg-sched {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.leg-est {
+  color: #b1432b;
+}
+
+.leg-arrow {
+  font-size: 16px;
+  color: var(--muted);
+}
+
 .travel-suggestions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -452,10 +567,59 @@ textarea:focus-visible {
   outline-offset: 2px;
 }
 
-.loading {
-  margin: 0;
+.typing-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  min-height: 22px;
+}
+
+.typing-label {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.typing-dots > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  display: inline-block;
+  animation: typing-bounce 1.2s infinite ease-in-out;
+}
+
+.typing-dots > span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing-dots > span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .typing-dots > span {
+    animation: none;
+    opacity: 0.6;
+  }
 }
 
 .support-panel {

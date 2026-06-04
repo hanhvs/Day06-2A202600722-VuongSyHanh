@@ -74,7 +74,6 @@ const customerFieldLabels = {
 
 const triageForm = document.querySelector("#triageForm");
 const messageInput = document.querySelector("#messageInput");
-const loadingState = document.querySelector("#loadingState");
 const submitButton = document.querySelector("#submitButton");
 const resetButton = document.querySelector("#resetButton");
 const copyButton = document.querySelector("#copyButton");
@@ -156,10 +155,147 @@ function appendAssistantMessage(html) {
   scrollChatToBottom();
 }
 
+function appendTypingIndicator() {
+  const article = document.createElement("article");
+  article.className = "message assistant typing";
+  article.innerHTML = `
+    <div class="avatar">NEO</div>
+    <div class="bubble typing-bubble" aria-live="polite">
+      <span class="typing-dots"><span></span><span></span><span></span></span>
+      <span class="typing-label">Đang chuẩn bị…</span>
+    </div>
+  `;
+  chatMessages.append(article);
+  scrollChatToBottom();
+  return article;
+}
+
+function setTypingLabel(typingEl, label) {
+  const labelEl = typingEl?.querySelector(".typing-label");
+  if (labelEl) labelEl.textContent = label;
+  scrollChatToBottom();
+}
+
+async function streamTriage(message, typingEl) {
+  const response = await fetch("/api/triage/stream", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream"
+    },
+    body: JSON.stringify({ message, conversationState })
+  });
+  if (!response.ok || !response.body) {
+    throw new Error(`Server lỗi (${response.status})`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finalResult = null;
+  let streamError = null;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let separator;
+    while ((separator = buffer.indexOf("\n\n")) !== -1) {
+      const block = buffer.slice(0, separator);
+      buffer = buffer.slice(separator + 2);
+      const dataLine = block.split("\n").find((line) => line.startsWith("data:"));
+      if (!dataLine) continue;
+      let event;
+      try {
+        event = JSON.parse(dataLine.slice(5).trim());
+      } catch {
+        continue;
+      }
+      if (event.type === "stage") {
+        setTypingLabel(typingEl, event.label);
+      } else if (event.type === "done") {
+        finalResult = event.result;
+      } else if (event.type === "error") {
+        streamError = new Error(event.message || "Server lỗi");
+      }
+    }
+  }
+
+  if (streamError) throw streamError;
+  if (!finalResult) throw new Error("Stream kết thúc nhưng chưa có kết quả.");
+  return finalResult;
+}
+
 function renderMiniList(items, maxItems = 4) {
   const visibleItems = (items || []).slice(0, maxItems);
   if (!visibleItems.length) return "";
   return `<ul>${visibleItems.map((item) => `<li>${escapeHtml(humanizeText(item))}</li>`).join("")}</ul>`;
+}
+
+const flightStatusBadges = {
+  scheduled: { label: "Đúng lịch", className: "ok" },
+  active: { label: "Đang bay", className: "ok" },
+  landed: { label: "Đã hạ cánh", className: "ok" },
+  cancelled: { label: "Đã huỷ", className: "warn" },
+  incident: { label: "Sự cố", className: "warn" },
+  diverted: { label: "Đổi hướng", className: "warn" }
+};
+
+function formatTimeCell(scheduled, estimated, delayMinutes) {
+  const sched = scheduled ? escapeHtml(scheduled) : "—";
+  const hasDelay = typeof delayMinutes === "number" && delayMinutes > 0;
+  const showEstimated = estimated && estimated !== scheduled;
+  if (hasDelay || showEstimated) {
+    const est = estimated ? escapeHtml(estimated) : sched;
+    const delayLabel = hasDelay ? ` (+${delayMinutes}ph)` : "";
+    return `<span class="leg-sched">${sched}</span><span class="leg-est">→ ${est}${delayLabel}</span>`;
+  }
+  return `<span class="leg-sched">${sched}</span>`;
+}
+
+function renderFlightCards(flights = []) {
+  if (!flights.length) return "";
+  return `
+    <p class="flight-list-header">${flights.length} chuyến tìm được · sắp xếp theo giờ khởi hành</p>
+    <div class="flight-suggestions" aria-label="Chuyến bay tìm được">
+      ${flights
+        .map((flight) => {
+          const number = flight.flightNumber ? escapeHtml(flight.flightNumber) : "—";
+          const airline = flight.airline ? escapeHtml(flight.airline) : "";
+          const dep = flight.departureIata ? escapeHtml(flight.departureIata) : "—";
+          const arr = flight.arrivalIata ? escapeHtml(flight.arrivalIata) : "—";
+          const depAirport = flight.departureAirport ? escapeHtml(flight.departureAirport) : "";
+          const arrAirport = flight.arrivalAirport ? escapeHtml(flight.arrivalAirport) : "";
+          const depTime = formatTimeCell(flight.departureScheduled, flight.departureEstimated, flight.delayMinutes);
+          const arrTime = formatTimeCell(flight.arrivalScheduled, flight.arrivalEstimated, null);
+          const badge = flightStatusBadges[flight.status] || { label: flight.status || "—", className: "neutral" };
+          return `
+            <article class="flight-card">
+              <header class="flight-card-top">
+                <strong>${number}</strong>
+                <span class="flight-badge ${badge.className}">${escapeHtml(badge.label)}</span>
+              </header>
+              ${airline ? `<small class="flight-airline">${airline}</small>` : ""}
+              <div class="flight-row">
+                <div class="flight-leg">
+                  <span class="leg-iata">${dep}</span>
+                  <span class="leg-airport">${depAirport}</span>
+                  <span class="leg-times">${depTime}</span>
+                </div>
+                <span class="leg-arrow" aria-hidden="true">→</span>
+                <div class="flight-leg">
+                  <span class="leg-iata">${arr}</span>
+                  <span class="leg-airport">${arrAirport}</span>
+                  <span class="leg-times">${arrTime}</span>
+                </div>
+              </div>
+            </article>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
 }
 
 function renderTravelSuggestionCards(suggestions = []) {
@@ -215,7 +351,12 @@ function buildAssistantReply(response) {
       ? `<p>Mình hiểu vấn đề của bạn là <strong>${escapeHtml(selectedLabel)}</strong>. Vì tình huống này liên quan đến tiền, vé hoặc dịch vụ chưa được xác nhận, mình chưa thể kết luận giao dịch đã thành công.</p>`
       : `<p>Mình hiểu câu hỏi của bạn thuộc nhóm <strong>${escapeHtml(selectedLabel)}</strong>. Mình sẽ hướng dẫn ngắn gọn và hỏi thêm nếu cần.</p>`;
 
-  const missing = response.missingInfo?.length
+  const hasFlightResults = Boolean(response.flightResults?.length);
+  const flightResults = hasFlightResults
+    ? renderFlightCards(response.flightResults)
+    : "";
+
+  const missing = response.missingInfo?.length && !hasFlightResults
     ? `<p>Để kiểm tra nhanh hơn, bạn nên chuẩn bị:</p>${renderMiniList(response.missingInfo, 5)}`
     : "";
 
@@ -239,6 +380,7 @@ function buildAssistantReply(response) {
 
   return `
     ${answer}
+    ${flightResults}
     ${travelSuggestions}
     ${missing}
     ${checklist}
@@ -447,24 +589,22 @@ async function runTriage(message) {
   if (!trimmed) return;
 
   appendUserMessage(trimmed);
-  loadingState.hidden = false;
+  messageInput.value = "";
   submitButton.disabled = true;
+  submitButton.textContent = "Đang gửi…";
+  const typingEl = appendTypingIndicator();
 
   try {
-    const response = await fetch("/api/triage", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: trimmed, conversationState })
-    });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Không gọi được server.");
+    const result = await streamTriage(trimmed, typingEl);
+    typingEl.remove();
     renderResponse(result);
   } catch (error) {
+    typingEl.remove();
     document.querySelector("#resultSummary").textContent = `Chưa kết nối được bản demo. Bạn thử chạy lại server hoặc dùng lại sau.`;
     appendAssistantMessage("<p>Mình chưa kết nối được bản demo lúc này. Bạn thử lại sau hoặc kiểm tra server local đang chạy nhé.</p>");
   } finally {
-    loadingState.hidden = true;
     submitButton.disabled = false;
+    submitButton.textContent = "Gửi";
   }
 }
 
@@ -481,6 +621,13 @@ document.querySelectorAll(".test-button").forEach((button) => {
 triageForm.addEventListener("submit", (event) => {
   event.preventDefault();
   runTriage(messageInput.value);
+});
+
+messageInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+    event.preventDefault();
+    if (!submitButton.disabled) runTriage(messageInput.value);
+  }
 });
 
 resetButton.addEventListener("click", () => {

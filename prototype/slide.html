@@ -1,0 +1,1390 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vietnam Airlines NEO — Chatbot cải tiến · Day 06</title>
+    <style>
+      :root {
+        --bg: #faf8f4;
+        --bg-alt: #ffffff;
+        --bg-dark: #0a1a2c;
+        --surface: #ffffff;
+        --surface-soft: #f3f0ea;
+        --surface-cool: #eef4f9;
+        --text: #0d1f2d;
+        --text-on-dark: #f5f9fc;
+        --muted: #6b7e92;
+        --muted-on-dark: #8aa2bb;
+        --navy: #0a2742;
+        --accent: #1264c4;
+        --accent-soft: #d8e7f7;
+        --accent-bright: #4ea3ff;
+        --green: #1c7c54;
+        --green-soft: #d6efe1;
+        --warn: #b1432b;
+        --warn-soft: #fde2da;
+        --gold: #c9a227;
+        --border: #e1dcd2;
+        --border-cool: #d6e4ee;
+        --shadow: 0 12px 40px -16px rgba(13, 31, 45, 0.18);
+      }
+
+      * { box-sizing: border-box; }
+
+      html { scroll-behavior: smooth; }
+
+      html, body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+        font-size: 17px;
+        line-height: 1.6;
+        font-feature-settings: "ss01", "cv11";
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      .topnav {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        background: rgba(250, 248, 244, 0.85);
+        backdrop-filter: saturate(180%) blur(14px);
+        -webkit-backdrop-filter: saturate(180%) blur(14px);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .topnav-inner {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 14px 32px;
+        display: flex;
+        align-items: center;
+        gap: 24px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 8px;
+        font-weight: 800;
+        color: var(--navy);
+        font-size: 16px;
+        letter-spacing: -0.2px;
+        text-decoration: none;
+      }
+
+      .brand .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 999px;
+        background: var(--accent);
+        display: inline-block;
+        transform: translateY(-1px);
+      }
+
+      .brand .sub {
+        font-weight: 500;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .nav-links {
+        margin-left: auto;
+        display: flex;
+        gap: 22px;
+      }
+
+      .nav-links a {
+        color: var(--muted);
+        font-size: 14px;
+        text-decoration: none;
+        font-weight: 600;
+        letter-spacing: -0.1px;
+      }
+
+      .nav-links a:hover { color: var(--navy); }
+
+      .nav-cta {
+        padding: 8px 16px;
+        background: var(--navy);
+        color: white !important;
+        border-radius: 999px;
+        font-size: 13px;
+      }
+
+      .nav-cta:hover { background: var(--accent); }
+
+      section {
+        padding: 96px 32px;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+
+      .container.narrow { max-width: 920px; }
+
+      .eyebrow {
+        display: inline-block;
+        text-transform: uppercase;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 2px;
+        color: var(--accent);
+        margin-bottom: 16px;
+      }
+
+      .eyebrow.muted { color: var(--muted); }
+      .eyebrow.warn { color: var(--warn); }
+      .eyebrow.green { color: var(--green); }
+
+      h1 {
+        margin: 0 0 24px;
+        font-size: clamp(40px, 6vw, 72px);
+        line-height: 1.02;
+        letter-spacing: -2px;
+        color: var(--navy);
+        font-weight: 800;
+      }
+
+      h2 {
+        margin: 0 0 16px;
+        font-size: clamp(32px, 4vw, 48px);
+        line-height: 1.08;
+        letter-spacing: -1.2px;
+        color: var(--navy);
+        font-weight: 800;
+      }
+
+      h3 {
+        margin: 0 0 8px;
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--navy);
+        letter-spacing: -0.4px;
+      }
+
+      h4 {
+        margin: 0 0 6px;
+        font-size: 15px;
+        text-transform: uppercase;
+        letter-spacing: 1.4px;
+        color: var(--muted);
+        font-weight: 800;
+      }
+
+      p { margin: 0 0 16px; }
+
+      .lede {
+        font-size: clamp(20px, 2vw, 24px);
+        line-height: 1.45;
+        color: var(--muted);
+        max-width: 65ch;
+        font-weight: 400;
+      }
+
+      a { color: var(--accent); }
+      a:hover { color: var(--navy); }
+
+      /* ===== HERO ===== */
+      .hero {
+        padding: 88px 32px 120px;
+        background:
+          radial-gradient(ellipse 80% 60% at 70% 20%, rgba(78, 163, 255, 0.12), transparent 60%),
+          radial-gradient(ellipse 60% 60% at 20% 80%, rgba(28, 124, 84, 0.08), transparent 60%),
+          var(--bg);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .hero-grid {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 56px;
+        align-items: center;
+      }
+
+      .hero-meta {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 28px;
+        flex-wrap: wrap;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--navy);
+        letter-spacing: 0.2px;
+      }
+
+      .badge .swatch {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--accent);
+      }
+
+      .hero h1 .accent { color: var(--accent); }
+
+      .hero .lede { margin-bottom: 32px; }
+
+      .cta-row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 14px 22px;
+        font-size: 15px;
+        font-weight: 700;
+        border-radius: 10px;
+        text-decoration: none;
+        border: 1px solid transparent;
+        transition: transform 0.1s;
+      }
+
+      .button.primary {
+        background: var(--navy);
+        color: white;
+      }
+
+      .button.primary:hover {
+        background: var(--accent);
+        color: white;
+      }
+
+      .button.ghost {
+        background: var(--surface);
+        color: var(--navy);
+        border-color: var(--border);
+      }
+
+      .button.ghost:hover { border-color: var(--navy); }
+
+      .button:active { transform: translateY(1px); }
+
+      .hero-art {
+        background: var(--surface);
+        border: 1px solid var(--border-cool);
+        border-radius: 18px;
+        padding: 18px;
+        box-shadow: var(--shadow);
+        font-family: "SF Mono", Menlo, Consolas, monospace;
+        font-size: 13px;
+        line-height: 1.7;
+      }
+
+      .hero-art .row {
+        display: flex;
+        gap: 8px;
+        align-items: baseline;
+        padding: 8px 10px;
+        border-radius: 8px;
+      }
+
+      .hero-art .row + .row { margin-top: 2px; }
+      .hero-art .row.user { background: var(--accent-soft); }
+      .hero-art .row.stage { color: var(--muted); }
+      .hero-art .row.tool { background: var(--green-soft); color: var(--green); }
+      .hero-art .row.bot { background: var(--surface-soft); }
+      .hero-art .tag {
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: rgba(0, 0, 0, 0.06);
+        color: var(--muted);
+        white-space: nowrap;
+      }
+
+      /* ===== STATS BAR ===== */
+      .stats {
+        max-width: 1200px;
+        margin: -56px auto 0;
+        padding: 0 32px;
+        position: relative;
+        z-index: 2;
+      }
+
+      .stats-inner {
+        background: var(--bg-dark);
+        color: var(--text-on-dark);
+        border-radius: 18px;
+        padding: 32px 40px;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 32px;
+        box-shadow: var(--shadow);
+      }
+
+      .stat strong {
+        display: block;
+        font-size: 36px;
+        font-weight: 800;
+        color: var(--accent-bright);
+        letter-spacing: -1px;
+        line-height: 1.1;
+      }
+
+      .stat span {
+        display: block;
+        margin-top: 4px;
+        font-size: 13px;
+        color: var(--muted-on-dark);
+        letter-spacing: 0.2px;
+      }
+
+      /* ===== GENERIC LAYOUT ===== */
+      .two-col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 32px;
+        align-items: start;
+      }
+
+      .three-col {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+      }
+
+      .four-col {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+      }
+
+      .card {
+        padding: 24px 26px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .card .num {
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+
+      .card.soft { background: var(--surface-soft); border-color: var(--border); }
+      .card.cool { background: var(--surface-cool); border-color: var(--border-cool); }
+      .card.warn-bg { background: var(--warn-soft); border-color: var(--warn); }
+      .card.green-bg { background: var(--green-soft); border-color: var(--green); }
+
+      .card.warn-bg h3 { color: var(--warn); }
+      .card.green-bg h3 { color: var(--green); }
+
+      .card p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.55; }
+      .card.warn-bg p, .card.green-bg p { color: var(--text); }
+
+      .quote-box {
+        padding: 36px 40px;
+        background: var(--surface);
+        border-left: 5px solid var(--accent);
+        border-radius: 0 16px 16px 0;
+        font-size: 21px;
+        line-height: 1.55;
+        color: var(--text);
+        max-width: 80ch;
+      }
+
+      .quote-box .source {
+        display: block;
+        margin-top: 16px;
+        font-size: 13px;
+        color: var(--muted);
+        font-weight: 600;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+      }
+
+      /* ===== EVIDENCE ===== */
+      .evidence-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 24px;
+      }
+
+      .evidence-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .evidence-card img {
+        width: 100%;
+        height: 280px;
+        object-fit: cover;
+        object-position: center top;
+        background: var(--surface-soft);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .evidence-card .body {
+        padding: 18px 22px 22px;
+      }
+
+      .evidence-card .tag {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 1.5px;
+        color: var(--warn);
+        background: var(--warn-soft);
+        padding: 3px 10px;
+        border-radius: 999px;
+        margin-bottom: 8px;
+      }
+
+      .evidence-card h4 {
+        margin: 0 0 6px;
+        font-size: 17px;
+        text-transform: none;
+        letter-spacing: -0.2px;
+        color: var(--navy);
+      }
+
+      .evidence-card p { color: var(--muted); margin: 0; font-size: 14.5px; line-height: 1.55; }
+
+      /* ===== DARK SECTION ===== */
+      .dark {
+        background: var(--bg-dark);
+        color: var(--text-on-dark);
+      }
+
+      .dark h2, .dark h3 { color: white; }
+      .dark .eyebrow { color: var(--accent-bright); }
+      .dark .lede { color: var(--muted-on-dark); }
+      .dark .card {
+        background: rgba(255, 255, 255, 0.04);
+        border-color: rgba(255, 255, 255, 0.1);
+      }
+      .dark .card h3 { color: white; }
+      .dark .card p { color: var(--muted-on-dark); }
+
+      /* ===== PIPELINE FRAME (looks like a chat console) ===== */
+      .pipeline {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 28px;
+        box-shadow: var(--shadow);
+      }
+
+      .pipeline-row {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        padding: 10px 0;
+        border-bottom: 1px dashed var(--border);
+        font-family: "SF Mono", Menlo, Consolas, monospace;
+        font-size: 13.5px;
+        line-height: 1.5;
+      }
+
+      .pipeline-row:last-child { border-bottom: none; }
+
+      .pipeline-row .tag {
+        flex: 0 0 78px;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        padding: 3px 10px;
+        border-radius: 999px;
+        text-align: center;
+      }
+
+      .pipeline-row .tag.user { background: var(--accent-soft); color: var(--accent); }
+      .pipeline-row .tag.stage { background: var(--surface-soft); color: var(--muted); border: 1px solid var(--border); }
+      .pipeline-row .tag.tool { background: var(--green-soft); color: var(--green); }
+      .pipeline-row .tag.bot { background: #fff0c2; color: #835a00; }
+
+      .pipeline-row code {
+        background: none;
+        color: var(--text);
+        font-size: 13.5px;
+        flex: 1;
+      }
+
+      /* ===== ARCHITECTURE ===== */
+      .arch {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 0;
+        align-items: stretch;
+        margin-top: 16px;
+      }
+
+      .arch .node {
+        padding: 20px 16px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 4px;
+      }
+
+      .arch .node strong {
+        display: block;
+        color: var(--navy);
+        font-size: 14px;
+        letter-spacing: -0.2px;
+      }
+
+      .arch .node small {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .arch .node.accent {
+        background: var(--bg-dark);
+        border-color: var(--bg-dark);
+      }
+      .arch .node.accent strong { color: white; }
+      .arch .node.accent small { color: var(--muted-on-dark); }
+
+      .arch .node.ok {
+        background: var(--green-soft);
+        border-color: var(--green);
+      }
+      .arch .node.ok strong { color: var(--green); }
+      .arch .node.ok small { color: #225a3f; }
+
+      .arch .arrow {
+        display: grid;
+        place-items: center;
+        font-size: 22px;
+        color: var(--muted);
+      }
+
+      .arch-vertical {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+        max-width: 280px;
+        margin: 16px auto 0;
+      }
+      .arch-vertical .arrow { transform: rotate(90deg); }
+
+      /* ===== CODE BLOCKS ===== */
+      pre.code {
+        margin: 0;
+        padding: 22px 24px;
+        background: var(--bg-dark);
+        color: #d6e4ee;
+        border-radius: 14px;
+        font-family: "SF Mono", Menlo, Consolas, monospace;
+        font-size: 13.5px;
+        line-height: 1.65;
+        overflow-x: auto;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      pre.code .key { color: #ff9d6a; }
+      pre.code .str { color: #95e1a0; }
+      pre.code .keyword { color: #7dc5ff; }
+      pre.code .mute { color: #6c7d8f; }
+      pre.code .yellow { color: #f5cf6c; }
+      pre.code .warn { color: #ffb59a; }
+
+      /* ===== DEMO IFRAME ===== */
+      .demo-frame {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 14px;
+        box-shadow: var(--shadow);
+        margin-top: 32px;
+        overflow: hidden;
+      }
+
+      .demo-frame .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 8px 12px;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 12px;
+      }
+
+      .demo-frame .dots-row {
+        display: flex;
+        gap: 6px;
+      }
+
+      .demo-frame .dots-row span {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: var(--border);
+      }
+
+      .demo-frame .dots-row span:nth-child(1) { background: #e96763; }
+      .demo-frame .dots-row span:nth-child(2) { background: #f3c14d; }
+      .demo-frame .dots-row span:nth-child(3) { background: #58c45b; }
+
+      .demo-frame .url {
+        flex: 1;
+        font-family: "SF Mono", Menlo, Consolas, monospace;
+        font-size: 12.5px;
+        color: var(--muted);
+        background: var(--surface-soft);
+        padding: 5px 10px;
+        border-radius: 6px;
+      }
+
+      .demo-frame iframe {
+        width: 100%;
+        height: 760px;
+        border: 0;
+        border-radius: 12px;
+        background: var(--surface-soft);
+      }
+
+      /* ===== TIMELINE ===== */
+      .timeline {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .timeline .step {
+        display: grid;
+        grid-template-columns: 80px 1fr;
+        gap: 24px;
+        padding: 18px 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .timeline .step:last-child { border-bottom: none; }
+
+      .timeline .step .num {
+        font-size: 42px;
+        font-weight: 800;
+        color: var(--accent);
+        line-height: 1;
+        letter-spacing: -2px;
+      }
+
+      .timeline .step .body h3 { margin: 0 0 4px; font-size: 19px; }
+      .timeline .step .body p { margin: 0; color: var(--muted); font-size: 15px; }
+
+      /* ===== BOUNDARIES ===== */
+      .boundary-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px 32px;
+      }
+
+      .boundary-list li {
+        display: flex;
+        gap: 10px;
+        align-items: baseline;
+        padding: 14px 0;
+        border-bottom: 1px solid var(--border);
+        font-size: 16px;
+      }
+
+      .boundary-list li::before {
+        content: "✕";
+        color: var(--warn);
+        font-weight: 800;
+        flex: 0 0 16px;
+      }
+
+      /* ===== TEAM ===== */
+      .team {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 14px;
+      }
+
+      .person {
+        padding: 22px 20px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        text-align: center;
+      }
+
+      .person .avatar {
+        width: 56px;
+        height: 56px;
+        border-radius: 999px;
+        background: var(--navy);
+        color: white;
+        display: grid;
+        place-items: center;
+        font-weight: 800;
+        font-size: 22px;
+        margin: 0 auto 12px;
+        letter-spacing: -0.5px;
+      }
+
+      .person h4 {
+        margin: 0 0 2px;
+        font-size: 16px;
+        text-transform: none;
+        letter-spacing: -0.2px;
+        color: var(--navy);
+      }
+
+      .person small {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      /* ===== FOOTER ===== */
+      footer {
+        padding: 56px 32px 80px;
+        border-top: 1px solid var(--border);
+        background: var(--surface-soft);
+      }
+
+      .footer-grid {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        justify-content: space-between;
+        gap: 32px;
+        flex-wrap: wrap;
+      }
+
+      .footer-grid p { color: var(--muted); font-size: 14px; margin: 0; }
+
+      /* ===== SCROLL FADE ===== */
+      .reveal {
+        opacity: 0;
+        transform: translateY(20px);
+        transition: opacity 0.7s ease, transform 0.7s ease;
+      }
+
+      .reveal.in {
+        opacity: 1;
+        transform: none;
+      }
+
+      /* ===== RESPONSIVE ===== */
+      @media (max-width: 980px) {
+        .hero-grid { grid-template-columns: 1fr; }
+        .two-col, .three-col { grid-template-columns: 1fr; }
+        .stats-inner { grid-template-columns: repeat(2, 1fr); }
+        .arch { grid-template-columns: 1fr; }
+        .arch .arrow { transform: rotate(90deg); padding: 6px 0; }
+        .boundary-list { grid-template-columns: 1fr; }
+        .team { grid-template-columns: repeat(2, 1fr); }
+        .evidence-grid { grid-template-columns: 1fr; }
+        section { padding: 64px 24px; }
+        .hero { padding: 64px 24px 96px; }
+      }
+
+      @media (max-width: 560px) {
+        .nav-links { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="topnav">
+      <div class="topnav-inner">
+        <a class="brand" href="#top">
+          <span class="dot"></span> Vietnam Airlines <span class="sub">NEO · Chatbot cải tiến</span>
+        </a>
+        <div class="nav-links">
+          <a href="#problem">Vấn đề</a>
+          <a href="#built">Đã build</a>
+          <a href="#architecture">Architecture</a>
+          <a href="#demo">Demo</a>
+          <a href="#team">Team</a>
+          <a class="nav-cta" href="/" target="_blank">Mở prototype ↗</a>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ===== HERO ===== -->
+    <section class="hero" id="top">
+      <div class="hero-grid">
+        <div>
+          <div class="hero-meta">
+            <span class="badge"><span class="swatch"></span> Track B · Travel & Hospitality</span>
+            <span class="badge">Day 06 · AI Product Lab</span>
+          </div>
+          <h1>NEO biết khi nào <span class="accent">gọi tool</span>, biết khi nào <span class="accent">chuyển nhân viên</span>.</h1>
+          <p class="lede">Bản cải tiến chatbot Vietnam Airlines NEO: AI triage cho hành khách gặp lỗi sau thanh toán vé/hành lý, kèm tra cứu chuyến bay realtime qua function calling. Khi tình huống có rủi ro tiền/vé, prototype chuyển sang luồng an toàn — không tự ý xác nhận giao dịch.</p>
+          <div class="cta-row">
+            <a class="button primary" href="/" target="_blank">Mở demo prototype ↗</a>
+            <a class="button ghost" href="#demo">Xem live trong trang</a>
+          </div>
+        </div>
+        <div class="hero-art">
+          <div class="row user">
+            <span class="tag">User</span>
+            <span>Tìm chuyến bay HAN to SGN</span>
+          </div>
+          <div class="row stage">
+            <span class="tag">Stage</span>
+            <span>Đang phân loại — 1 vấn đề: Tra cứu chuyến bay</span>
+          </div>
+          <div class="row stage">
+            <span class="tag">Stage</span>
+            <span>Đang hỏi AI (gpt-4.1-mini)</span>
+          </div>
+          <div class="row tool">
+            <span class="tag">Tool</span>
+            <span>Đang tra Aviationstack — HAN → SGN</span>
+          </div>
+          <div class="row tool">
+            <span class="tag">Tool</span>
+            <span>Aviationstack trả 25 chuyến</span>
+          </div>
+          <div class="row stage">
+            <span class="tag">Stage</span>
+            <span>Đang kiểm tra rủi ro (mức Low)</span>
+          </div>
+          <div class="row bot">
+            <span class="tag">NEO</span>
+            <span>Có 282 chuyến HAN → SGN hôm nay (hiển thị 25)…</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== STATS ===== -->
+    <div class="stats reveal">
+      <div class="stats-inner">
+        <div class="stat">
+          <strong>3</strong>
+          <span>Intent core MVP xử lý sâu (ticket / baggage / unclear)</span>
+        </div>
+        <div class="stat">
+          <strong>1</strong>
+          <span>Tool function calling (search_flights ↔ Aviationstack)</span>
+        </div>
+        <div class="stat">
+          <strong>5</strong>
+          <span>Demo path: happy / low-conf / failure / correction / flight search</span>
+        </div>
+        <div class="stat">
+          <strong>0</strong>
+          <span>Giao dịch thật được xác nhận hoặc thực thi</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PROBLEM ===== -->
+    <section id="problem">
+      <div class="container narrow">
+        <div class="eyebrow warn">01 · Pain</div>
+        <h2>NEO hôm nay trả lời như brochure — không như support.</h2>
+        <p class="lede">Hành khách nhắn để xử lý vấn đề, NEO trả về điều khoản chung. Khi user nói "tiền đã trừ" — câu trả lời vẫn cùng cấp độ với "hành lý xách tay bao nhiêu kg".</p>
+      </div>
+      <div class="container reveal" style="margin-top: 56px;">
+        <div class="quote-box">
+          Hành khách Vietnam Airlines gặp lỗi sau thanh toán vé hoặc hành lý mua thêm đang khó biết bước xử lý tiếp theo, vì NEO trả lời theo dạng thông tin chung, hỏi lại chưa cụ thể, chưa phân biệt case rủi ro cao liên quan tiền/vé/dịch vụ, và chưa tận dụng tốt context đã có trong hội thoại.
+          <span class="source">— Pain statement, thin-spec §3</span>
+        </div>
+      </div>
+      <div class="container reveal" style="margin-top: 48px;">
+        <div class="four-col">
+          <div class="card soft">
+            <span class="num">Symptom 01</span>
+            <h3>Trả lời chung chung</h3>
+            <p>Câu hỏi cụ thể về vé / hành lý đều nhận về policy dài, không có bước tiếp theo cụ thể.</p>
+          </div>
+          <div class="card soft">
+            <span class="num">Symptom 02</span>
+            <h3>Không phân biệt risk</h3>
+            <p>Case "tiền đã trừ, chưa nhận vé" có rủi ro cao, bot vẫn trả như câu hỏi thường — user dễ tin nhầm.</p>
+          </div>
+          <div class="card soft">
+            <span class="num">Symptom 03</span>
+            <h3>Mất context giữa lượt</h3>
+            <p>User đã nói "tiền đã trừ" rồi vẫn bị bot hỏi lại "anh đã thanh toán chưa?".</p>
+          </div>
+          <div class="card soft">
+            <span class="num">Symptom 04</span>
+            <h3>Không tách multi-intent</h3>
+            <p>3 vấn đề trong 1 câu → 1 đoạn dài sai trọng tâm, không có thứ tự xử lý.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== EVIDENCE ===== -->
+    <section id="evidence" style="background: var(--bg-alt); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
+      <div class="container">
+        <div class="eyebrow">02 · Evidence (self-use NEO)</div>
+        <h2>Bốn finding cho bốn lỗ hổng.</h2>
+        <p class="lede">Mỗi ảnh là một lần dùng NEO thật, một quyết định product cần làm khác đi.</p>
+      </div>
+      <div class="container reveal" style="margin-top: 56px;">
+        <div class="evidence-grid">
+          <article class="evidence-card">
+            <img src="/evidence/Screenshot_2026-06-03_151509.png" alt="G1 — Multi-intent" loading="lazy" />
+            <div class="body">
+              <span class="tag">G1 — Multi-intent</span>
+              <h4>User hỏi 3 thứ trong 1 câu, bot trả 1 đoạn dài.</h4>
+              <p>→ SPEC: thêm <code>detectedIssues[]</code> + <code>needsIntentSelection=true</code>, hỏi user chọn xử lý mục nào trước.</p>
+            </div>
+          </article>
+          <article class="evidence-card">
+            <img src="/evidence/Screenshot_2026-06-03_151533.png" alt="G2 — Risk" loading="lazy" />
+            <div class="body">
+              <span class="tag">G2 — Risk</span>
+              <h4>Case tiền/vé lỗi (rủi ro cao) bị trả như câu hỏi thường.</h4>
+              <p>→ SPEC: deterministic risk guardrails — "tiền đã trừ" luôn <code>riskLevel = High</code>, <code>shouldHandoff = true</code>.</p>
+            </div>
+          </article>
+          <article class="evidence-card">
+            <img src="/evidence/Screenshot_2026-06-03_151556.png" alt="G3 — Missing info" loading="lazy" />
+            <div class="body">
+              <span class="tag">G3 — Missing info</span>
+              <h4>Bot hỏi lại chung chung "anh cần gì".</h4>
+              <p>→ SPEC: per-intent <code>missingInfo[]</code> checklist + concrete <code>nextQuestions[]</code> bằng tiếng Việt.</p>
+            </div>
+          </article>
+          <article class="evidence-card">
+            <img src="/evidence/Screenshot_2026-06-03_151628.png" alt="G4 — Context loss" loading="lazy" />
+            <div class="body">
+              <span class="tag">G4 — Context loss</span>
+              <h4>User cấp context rồi vẫn bị hỏi lại từ đầu.</h4>
+              <p>→ SPEC: <code>knownInfo</code> persist qua các lượt, correction path giữ <code>paymentDeducted=true</code>.</p>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== WHAT WE BUILT ===== -->
+    <section id="built">
+      <div class="container narrow">
+        <div class="eyebrow green">03 · Đã build</div>
+        <h2>Một pipeline. Hai năng lực. Không lệch SPEC.</h2>
+        <p class="lede">Triage hẹp (3 intent xử lý sâu) cộng với một lớp realtime mới (tra chuyến bay) — chung một response schema, chung một bộ guardrails.</p>
+      </div>
+
+      <div class="container reveal" style="margin-top: 56px;">
+        <div class="three-col">
+          <div class="card cool">
+            <span class="num">01</span>
+            <h3>Triage hậu thanh toán</h3>
+            <p><code>ticket_payment_issue</code>, <code>baggage_addon_payment_issue</code>, <code>unclear_payment_issue</code>. Mỗi intent có riêng missing info, next questions, action checklist, handoff summary.</p>
+          </div>
+          <div class="card cool">
+            <span class="num">02</span>
+            <h3>Function calling tool</h3>
+            <p>LLM tự quyết khi nào gọi <code>search_flights</code>. Server proxy tới Aviationstack, normalize sang camelCase, dedupe + sort. Tool result đẩy ngược vào agentic loop, model summarize thành <code>flightResults[]</code> structured.</p>
+          </div>
+          <div class="card cool">
+            <span class="num">03</span>
+            <h3>SSE pipeline minh bạch</h3>
+            <p>Mỗi bước (phân loại, tra tool, kiểm rủi ro) gửi stage event ngược về browser. User thấy chính xác bot đang làm gì, không phải dấu chấm bouncing chung chung.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== ARCHITECTURE ===== -->
+    <section id="architecture" class="dark">
+      <div class="container">
+        <div class="eyebrow">04 · Architecture</div>
+        <h2>Frontend tĩnh ↔ Express ↔ OpenAI (tools) + Aviationstack.</h2>
+        <p class="lede">No framework, no build step. Một file <code>server.js</code> giữ secret + guardrails. Frontend chỉ render JSON.</p>
+      </div>
+
+      <div class="container reveal" style="margin-top: 48px;">
+        <div class="arch">
+          <div class="node">
+            <strong>Browser</strong>
+            <small>HTML / CSS / JS vanilla<br/>SSE client tự viết</small>
+          </div>
+          <div class="arrow">→</div>
+          <div class="node accent">
+            <strong>Express server</strong>
+            <small>/api/triage<br/>/api/triage/stream<br/>/api/flights</small>
+          </div>
+          <div class="arrow">↔</div>
+          <div class="node">
+            <strong>OpenAI gpt-4.1-mini</strong>
+            <small>Agentic loop · tool_choice=auto<br/>response_format=json_object</small>
+          </div>
+        </div>
+
+        <div class="arch" style="margin-top: 8px;">
+          <div class="node ok">
+            <strong>Deterministic guardrails</strong>
+            <small>Regex detect intent · risk override · sort + dedupe flightResults</small>
+          </div>
+          <div class="arrow">↘</div>
+          <div class="node">
+            <strong>Zod schemas</strong>
+            <small>TriageResponseSchema<br/>FlightResultSchema<br/>FlightsQuerySchema</small>
+          </div>
+          <div class="arrow">↙</div>
+          <div class="node">
+            <strong>Aviationstack</strong>
+            <small>/v1/flights realtime<br/>free tier · không gửi flight_date</small>
+          </div>
+        </div>
+
+        <p class="lede" style="margin-top: 40px; font-size: 16px;">Cùng một <code>TriageResponseSchema</code> cho LLM path và fallback mock. LLM hỏng key / timeout / quota → fallback deterministic vẫn đúng risk, vẫn đúng intent.</p>
+      </div>
+    </section>
+
+    <!-- ===== SSE PIPELINE ===== -->
+    <section>
+      <div class="container narrow">
+        <div class="eyebrow">05 · Pipeline minh bạch</div>
+        <h2>Bot không "đang xử lý..." — bot nói rõ đang làm gì.</h2>
+        <p class="lede">SSE stream từng stage. Mock mode hiển thị "đang dùng dữ liệu demo" để user biết LLM đang off. Tool calls gắn label cụ thể như "Đang tra Aviationstack — HAN → SGN".</p>
+      </div>
+
+      <div class="container reveal" style="margin-top: 48px;">
+        <div class="pipeline">
+          <div class="pipeline-row">
+            <span class="tag user">User</span>
+            <code>Tôi muốn tìm chuyến bay từ HAN to SGN</code>
+          </div>
+          <div class="pipeline-row">
+            <span class="tag stage">Stage</span>
+            <code>Đang đọc tin nhắn của bạn</code>
+          </div>
+          <div class="pipeline-row">
+            <span class="tag stage">Stage</span>
+            <code>Đang phân loại — 1 vấn đề: Tra cứu chuyến bay</code>
+          </div>
+          <div class="pipeline-row">
+            <span class="tag stage">Stage</span>
+            <code>Đang trích thông tin có sẵn từ hội thoại</code>
+          </div>
+          <div class="pipeline-row">
+            <span class="tag stage">Stage</span>
+            <code>Đang hỏi AI (gpt-4.1-mini)</code>
+          </div>
+          <div class="pipeline-row">
+            <span class="tag tool">Tool</span>
+            <code>Đang tra Aviationstack — HAN → SGN</code>
+          </div>
+          <div class="pipeline-row">
+            <span class="tag tool">Tool</span>
+            <code>Aviationstack trả 25 chuyến (tổng 282)</code>
+          </div>
+          <div class="pipeline-row">
+            <span class="tag stage">Stage</span>
+            <code>Đang ghép câu trả lời AI với guardrails</code>
+          </div>
+          <div class="pipeline-row">
+            <span class="tag stage">Stage</span>
+            <code>Đang kiểm tra rủi ro (mức Low)</code>
+          </div>
+          <div class="pipeline-row">
+            <span class="tag bot">NEO</span>
+            <code>Có 282 chuyến HAN → SGN hôm nay (hiển thị 25), sắp xếp theo giờ khởi hành.</code>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== FUNCTION CALLING ===== -->
+    <section style="background: var(--surface-soft);">
+      <div class="container">
+        <div class="eyebrow">06 · Function calling</div>
+        <h2>Agentic loop — LLM tự quyết khi nào gọi tool.</h2>
+        <p class="lede">Không phải LLM cố sinh JSON đẹp. LLM nhìn schema tool, đọc câu user, request tool call. Server execute, trả result vào context. Loop tối đa 3 vòng. Vòng cuối model viết JSON tổng kết.</p>
+      </div>
+
+      <div class="container reveal" style="margin-top: 48px;">
+        <div class="two-col" style="grid-template-columns: 1.1fr 1fr;">
+          <pre class="code"><span class="mute">// server.js — agentic loop</span>
+<span class="keyword">for</span> (<span class="keyword">let</span> iter = <span class="yellow">0</span>; iter &lt; MAX_TOOL_ITERATIONS; iter++) {
+  <span class="keyword">const</span> msg = (<span class="keyword">await</span> openai.chat.completions.create({
+    model: <span class="str">"gpt-4.1-mini"</span>,
+    tools: [search_flights],
+    tool_choice: <span class="str">"auto"</span>,
+    response_format: { type: <span class="str">"json_object"</span> },
+    messages
+  })).choices[<span class="yellow">0</span>].message;
+  messages.push(msg);
+
+  <span class="keyword">if</span> (!msg.tool_calls?.length) {
+    <span class="keyword">return</span> JSON.parse(msg.content); <span class="mute">// final JSON</span>
+  }
+
+  <span class="keyword">for</span> (<span class="keyword">const</span> call <span class="keyword">of</span> msg.tool_calls) {
+    onEvent({ stage: <span class="str">`Đang tra Aviationstack — </span><span class="warn">${dep}</span><span class="str"> → </span><span class="warn">${arr}</span><span class="str">`</span> });
+    <span class="keyword">const</span> result = <span class="keyword">await</span> callAviationstack(JSON.parse(call.function.arguments));
+    messages.push({
+      role: <span class="str">"tool"</span>, tool_call_id: call.id,
+      content: JSON.stringify(result).slice(<span class="yellow">0</span>, <span class="yellow">20000</span>)
+    });
+  }
+}</pre>
+          <div>
+            <h3>Vì sao agentic, không 1-shot?</h3>
+            <p style="color: var(--muted);">Câu user thường thiếu thông tin (date, airline, route). LLM cần ít nhất 2 turn: turn 1 quyết định gọi tool với args, turn 2 đọc result rồi tổng kết. Lớp guardrails ngoài cùng (Zod parse + risk override) vẫn deterministic.</p>
+
+            <h3 style="margin-top: 24px;">Server tự xử khi tool fail</h3>
+            <ul style="color: var(--muted); font-size: 15px;">
+              <li><strong>Free tier limit:</strong> tự strip <code>flight_date</code> nếu trùng hôm nay (param này paid-only).</li>
+              <li><strong>Codeshare dedup:</strong> server-side dedupe <code>flightResults</code> theo <code>flightNumber</code> sau khi LLM trả.</li>
+              <li><strong>Sort guarantee:</strong> server-side sort theo <code>departureScheduled</code> ascending — LLM bị lệch thứ tự cũng được fix.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== RISK GUARDRAILS ===== -->
+    <section>
+      <div class="container narrow">
+        <div class="eyebrow warn">07 · Risk guardrails</div>
+        <h2>Rule cứng chạy SAU LLM — không tin lời hứa của model.</h2>
+        <p class="lede">"Tiền đã trừ" → riskLevel High, shouldHandoff true. Bất kể LLM trả gì.</p>
+      </div>
+
+      <div class="container reveal" style="margin-top: 48px;">
+        <div class="two-col">
+          <div class="card warn-bg">
+            <h3>Trigger High risk</h3>
+            <ul style="color: var(--text);">
+              <li>"tiền đã trừ" / "bị trừ tiền" / "đã thanh toán"</li>
+              <li>"chưa nhận vé" / "chưa nhận email xác nhận"</li>
+              <li>"dịch vụ chưa xác nhận"</li>
+              <li><code>paymentDeducted=true</code> từ conversation state cũ (correction path)</li>
+            </ul>
+          </div>
+          <div class="card green-bg">
+            <h3>Hệ quả tự động</h3>
+            <ul style="color: var(--text);">
+              <li><code>riskLevel</code> ép thành <code>High</code></li>
+              <li><code>shouldHandoff</code> ép thành <code>true</code></li>
+              <li>Sinh <code>handoffSummary</code> đủ context cho nhân viên</li>
+              <li>Customer answer phải nói "chưa kết luận giao dịch thành công"</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== DEMO IFRAME ===== -->
+    <section id="demo" class="dark">
+      <div class="container">
+        <div class="eyebrow">08 · Live demo</div>
+        <h2>Prototype đang chạy ngay bên dưới.</h2>
+        <p class="lede">Nếu server <code>node server.js</code> đang up, iframe sẽ load luôn. Thử "Hành lý xách tay được bao nhiêu kg?", rồi "Tôi mua thêm hành lý nhưng app báo lỗi, tiền đã trừ", rồi "Tìm chuyến bay HAN to SGN".</p>
+      </div>
+
+      <div class="container reveal">
+        <div class="demo-frame">
+          <div class="toolbar">
+            <div class="dots-row"><span></span><span></span><span></span></div>
+            <div class="url">http://localhost:3000/</div>
+          </div>
+          <iframe src="/" title="Vietnam Airlines NEO prototype" loading="lazy"></iframe>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== DEMO PATHS ===== -->
+    <section>
+      <div class="container narrow">
+        <div class="eyebrow muted">09 · Demo paths</div>
+        <h2>5 đường để test trong 3 phút.</h2>
+      </div>
+
+      <div class="container reveal" style="margin-top: 48px;">
+        <div class="timeline">
+          <div class="step">
+            <div class="num">01</div>
+            <div class="body">
+              <h3>Happy — câu hỏi chính sách thường</h3>
+              <p>"Hành lý xách tay được bao nhiêu kg?" → risk Low, NEO hỏi hành trình + hạng vé, không handoff.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="num">02</div>
+            <div class="body">
+              <h3>Low-confidence — mơ hồ tiền/vé/hành lý</h3>
+              <p>"App báo lỗi, tiền bị trừ rồi." → risk High ngay, NEO hỏi vé hay hành lý mua thêm.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="num">03</div>
+            <div class="body">
+              <h3>Failure — failure mode nguy hiểm nhất</h3>
+              <p>"Mua thêm hành lý nhưng app báo lỗi, tiền đã trừ." → High, shouldHandoff, tự sinh handoffSummary có sẵn nút copy.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="num">04</div>
+            <div class="body">
+              <h3>Correction — đổi intent giữa hội thoại</h3>
+              <p>"Không phải vé, tôi đang nói về hành lý mua thêm." → đổi intent sang baggage, vẫn giữ <code>paymentDeducted=true</code> từ turn trước.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="num">05</div>
+            <div class="body">
+              <h3>Flight search — function calling</h3>
+              <p>"Tìm chuyến bay HAN to SGN" → tool fire, 25 chuyến cards đa hãng, sort theo giờ khởi hành, status badge cho từng chuyến.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== BOUNDARIES ===== -->
+    <section style="background: var(--surface-soft);">
+      <div class="container narrow">
+        <div class="eyebrow warn">10 · Boundaries</div>
+        <h2>Boundary là tính năng — không phải hạn chế.</h2>
+        <p class="lede">Mỗi mục dưới đây là một quyết định product để giảm rủi ro user tin nhầm prototype là sản phẩm thật.</p>
+      </div>
+
+      <div class="container reveal" style="margin-top: 40px;">
+        <ul class="boundary-list">
+          <li>Đặt vé thật</li>
+          <li>Đổi vé thật</li>
+          <li>Hoàn tiền thật</li>
+          <li>Xác nhận booking thay hệ thống đặt chỗ</li>
+          <li>Cập nhật hành lý / dịch vụ cộng thêm thật</li>
+          <li>Truy cập dữ liệu nội bộ Vietnam Airlines</li>
+          <li>Đặt khách sạn / tour / nhà hàng</li>
+          <li>Yêu cầu user nhập mã đặt chỗ thật</li>
+          <li>Khẳng định giờ mở cửa / phí / điều kiện vé</li>
+          <li>Chatbot du lịch tổng quát kiểu Layla</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ===== TEAM ===== -->
+    <section id="team">
+      <div class="container narrow">
+        <div class="eyebrow">11 · Team</div>
+        <h2>Ai làm gì.</h2>
+        <p class="lede">Phân vai trong nhóm cho Day 06 theo SPEC §10.</p>
+      </div>
+
+      <div class="container reveal" style="margin-top: 40px;">
+        <div class="team">
+          <div class="person">
+            <div class="avatar">H</div>
+            <h4>Hạnh</h4>
+            <small>Research / evidence pack</small>
+          </div>
+          <div class="person">
+            <div class="avatar">K</div>
+            <h4>Kiên</h4>
+            <small>SPEC / thin-spec / synthesis</small>
+          </div>
+          <div class="person">
+            <div class="avatar">L</div>
+            <h4>Long</h4>
+            <small>Prototype owner</small>
+          </div>
+          <div class="person">
+            <div class="avatar">K</div>
+            <h4>Khoa</h4>
+            <small>Test / failure path</small>
+          </div>
+          <div class="person">
+            <div class="avatar">Đ</div>
+            <h4>Đức</h4>
+            <small>Demo / repo / script</small>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== NEXT ===== -->
+    <section class="dark" id="next">
+      <div class="container narrow">
+        <div class="eyebrow">12 · Sau Day 06</div>
+        <h2>Cái này nên đi tiếp như thế nào.</h2>
+      </div>
+
+      <div class="container reveal" style="margin-top: 48px;">
+        <div class="three-col">
+          <div class="card">
+            <h3>Tích hợp dữ liệu thật</h3>
+            <p>Booking lookup khi có Vietnam Airlines internal API. Hôm nay prototype không bao giờ xác nhận booking — đó là khoảng trống cần API thật để lấp.</p>
+          </div>
+          <div class="card">
+            <h3>Tool registry mở rộng</h3>
+            <p>Thêm tool airline schedule, route distance, lounge info. Pattern agentic loop sẵn — chỉ cần định nghĩa schema + execute, đẩy vào TOOLS map.</p>
+          </div>
+          <div class="card">
+            <h3>Đo lường</h3>
+            <p>% case High-risk thực sự cần handoff (vs false positive). Latency p95 LLM + tool. Tỉ lệ user tự xử xong vs phải gọi tổng đài. Đo trước khi scale.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <div class="footer-grid">
+        <div>
+          <p style="color: var(--navy); font-weight: 800; margin-bottom: 6px;">Vietnam Airlines NEO — Chatbot cải tiến</p>
+          <p>Day 06 · Track B Travel & Hospitality · AI Product Lab</p>
+        </div>
+        <div>
+          <p>Repo: <code>02-group-spec/thin-spec.md</code></p>
+          <p>Demo: <a href="/">localhost:3000</a></p>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      (function () {
+        const els = document.querySelectorAll(".reveal");
+        const io = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((e) => {
+              if (e.isIntersecting) {
+                e.target.classList.add("in");
+                io.unobserve(e.target);
+              }
+            });
+          },
+          { rootMargin: "0px 0px -80px 0px", threshold: 0.05 }
+        );
+        els.forEach((el) => io.observe(el));
+      })();
+    </script>
+  </body>
+</html>
